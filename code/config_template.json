@@ -1,0 +1,18 @@
+{
+  "audios_path": "path_to_zip_or_folder_with_audio_files",
+  "output_file": "path_of_h5py_file",
+  "sample_length": "number_of_frames_per_sample",
+  "optional_args": {
+    "window_length": "in_ms",
+    "window_shift": "in_ms",
+    "num_features": "dimension_features",
+    "deltas": "true/false",
+    "deltas_deltas": "true/false",
+    "cmvn": "true/false",
+    "name": "mfcc/logmel",
+    "target_sampling_freq": "samples_per_second",
+    "reset_dur": "total_reset_frames",
+    "include_indices": "true/false",
+    "limit_h5py_size": "in_hours"
+  }
+}
