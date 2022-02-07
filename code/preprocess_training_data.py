@@ -37,17 +37,29 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
     window_length_sample = int(target_sampling_freq * window_length)
     window_shift_sample = int(target_sampling_freq * window_shift)
 
+    single_file = True
+    file_counter = 0
+    output_file = pathlib.Path(output_file)
+
+    tar_file = False
+    zip_file = False
     if zip_path != None:
         if zipfile.is_zipfile(zip_path):
             zf = zipfile.ZipFile(zip_path)
+            zip_file = True
         elif tarfile.is_tarfile(zip_path):
-            zf = tarfile.TarFile(zip_path)
+            zf = tarfile.open(zip_path)
+            tar_file = True
 
     for idx, file in enumerate(file_paths):
         files_names.append(file)
         if zip_path:
-            with zf.open(file) as audio_file:
-                file = io.BytesIO(audio_file.read())
+            if zip_file:
+                with zf.open(file) as audio_file:
+                    file = io.BytesIO(audio_file.read())
+            elif tar_file:
+                with zf.extractfile(file) as audio_file:
+                    file = io.BytesIO(audio_file.read())
 
         signal, sampling_freq = librosa.load(file, sr=target_sampling_freq)
 
@@ -94,7 +106,10 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
         # Check h5py size limit
         if limit_h5py_size>0:
             if duration_h5py_file >= limit_h5py_size:
-                _create_h5py_file(output_file, files_names, features, sample_length, reset_dur, include_indices)
+                output_file_tmp = output_file.parent.joinpath(output_file.stem+f"_{file_counter}"+output_file.suffix)
+                _create_h5py_file(output_file_tmp, files_names, features, sample_length, reset_dur, include_indices)
+                file_counter += 1
+                single_file = False
                 # reset values
                 del features
                 del files_names
@@ -103,8 +118,12 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
                 files_names = []
                 duration_h5py_file = 0
 
-    if (limit_h5py_size>0 and duration_h5py_file>0) or limit_h5py_size<0:
-        _create_h5py_file(output_file, files_names, features, sample_length, reset_dur, include_indices)
+    if (limit_h5py_size > 0 and duration_h5py_file > 0) or limit_h5py_size < 0:
+        if not single_file:
+            output_file_tmp = output_file.parent.joinpath(output_file.stem + f"_{file_counter}" + output_file.suffix)
+        else:
+            output_file_tmp = output_file
+        _create_h5py_file(output_file_tmp, files_names, features, sample_length, reset_dur, include_indices)
 
     if zip_path:
         zf.close()
@@ -112,8 +131,9 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
     return features
 
 
-def _create_h5py_file(output_path: str, file_paths: Union[List[pathlib.Path], List[str]], features: List[np.ndarray],
-                     sample_length: int, reset_dur: Optional[int] = 0, include_indices: Optional[bool] = False) -> None:
+def _create_h5py_file(output_path: Union[pathlib.Path, str], file_paths: Union[List[pathlib.Path], List[str]],
+                      features: List[np.ndarray], sample_length: int, reset_dur: Optional[int] = 0,
+                      include_indices: Optional[bool] = False) -> None:
     file_id = 0
     file_mapping = {}
     frame_indices = []
@@ -172,14 +192,21 @@ def _read_config_file(config_path: Union[pathlib.Path, str]) -> Tuple[List, Unio
 
         audios_path = pathlib.Path(config["audios_path"])
         if audios_path.exists():
-            zip_file_bool = zipfile.is_zipfile(audios_path) or tarfile.is_tarfile(audios_path)
-            file_paths = []
+            zip_file_bool = False
+            if zipfile.is_zipfile(audios_path):
+                zip_file_bool = True
+                file_paths = zipfile.ZipFile(audios_path).namelist()
+            elif tarfile.is_tarfile(audios_path):
+                zip_file_bool = True
+                file_paths = tarfile.open(audios_path).getnames()
             zip_file = None
             if not zip_file_bool:
                 file_paths = list(pathlib.Path(audios_path).glob('**/*.flac|**/*.wav'))
                 file_paths = sorted(file_paths)
             else:
                 zip_file = audios_path
+                file_paths = [audio_file for audio_file in file_paths if pathlib.Path(audio_file).suffix in ['.flac',
+                                                                                                             '.wav']]
             return file_paths, config["output_file"], zip_file, config["sample_length"], config["optional_args"]
         else:
             Exception(f"audios_path: {audios_path} does not exist.")
