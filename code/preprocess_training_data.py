@@ -7,7 +7,9 @@ import gc
 import io
 import json
 import pathlib
+import random
 import tarfile
+import warnings
 import zipfile
 from typing import Optional, List, Union, Tuple
 
@@ -20,9 +22,8 @@ __docformat__ = ['reStructuredText']
 __all__ = ['extract_acoustic_features']
 
 
-def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
+def extract_acoustic_features(file_paths: List[Tuple[str, str]],
                               output_file: Union[pathlib.Path, str], sample_length: int,
-                              zip_path: Optional[Union[pathlib.Path, str]] = None,
                               window_length: Optional[float] = 0.025, window_shift: Optional[float] = 0.01,
                               num_features: Optional[int] = 13, deltas: Optional[bool] = True,
                               deltas_deltas: Optional[bool] = True, cmvn: Optional[bool] = True,
@@ -41,29 +42,32 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
     file_counter = 0
     output_file = pathlib.Path(output_file)
 
-    tar_file = False
-    zip_file = False
-    if zip_path != None:
-        if zipfile.is_zipfile(zip_path):
-            zf = zipfile.ZipFile(zip_path)
-            zip_file = True
-        elif tarfile.is_tarfile(zip_path):
-            zf = tarfile.open(zip_path)
-            tar_file = True
+    all_compressed_files_tmp = set([file_path[0] for file_path in file_paths])
+    all_compressed_files = dict()
+    for file_path in all_compressed_files_tmp:
+        if zipfile.is_zipfile(file_path):
+            all_compressed_files[file_path] = (zipfile.ZipFile(file_path), 'zip')
+        elif tarfile.is_tarfile(file_path):
+            all_compressed_files[file_path] = (tarfile.open(file_path), 'tar')
 
-    for idx, file in enumerate(file_paths):
-        files_names.append(file)
-        if zip_path:
-            if zip_file:
-                with zf.open(file) as audio_file:
-                    file = io.BytesIO(audio_file.read())
-            elif tar_file:
-                with zf.extractfile(file) as audio_file:
-                    file = io.BytesIO(audio_file.read())
+    for idx, file_path in enumerate(file_paths):
+        compressed_file_path = file_path[0]
+        audio_file_path = file_path[1]
+        files_names.append(compressed_file_path+audio_file_path)  # path including compressed file
+        compressed_file = all_compressed_files[compressed_file_path][0]  # tarfile or zipfile object
+        compressed_file_type = all_compressed_files[compressed_file_path][1]
+        if 'zip' == compressed_file_type:
+            with compressed_file.open(audio_file_path) as audio_file:
+                file_IO = io.BytesIO(audio_file.read())
+        elif 'tar' == compressed_file_type:
+            with compressed_file.extractfile(audio_file_path) as audio_file:
+                file_IO = io.BytesIO(audio_file.read())
+        else:
+            continue
 
-        signal, sampling_freq = librosa.load(file, sr=target_sampling_freq)
+        signal, sampling_freq = librosa.load(file_IO, sr=target_sampling_freq)
 
-        duration = (len(signal)/target_sampling_freq)/3600  # in hours
+        duration = (len(signal) / target_sampling_freq) / 3600  # in hours
         duration_h5py_file += duration
 
         if name == 'mfcc':
@@ -104,9 +108,10 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
         print(tmp_feats.shape)
 
         # Check h5py size limit
-        if limit_h5py_size>0:
+        if limit_h5py_size > 0:
             if duration_h5py_file >= limit_h5py_size:
-                output_file_tmp = output_file.parent.joinpath(output_file.stem+f"_{file_counter}"+output_file.suffix)
+                output_file_tmp = output_file.parent.joinpath(
+                    output_file.stem + f"_{file_counter}" + output_file.suffix)
                 _create_h5py_file(output_file_tmp, files_names, features, sample_length, reset_dur, include_indices)
                 file_counter += 1
                 single_file = False
@@ -114,7 +119,7 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
                 del features
                 del files_names
                 gc.collect()
-                features= []
+                features = []
                 files_names = []
                 duration_h5py_file = 0
 
@@ -125,8 +130,8 @@ def extract_acoustic_features(file_paths: Union[List[pathlib.Path], List[str]],
             output_file_tmp = output_file
         _create_h5py_file(output_file_tmp, files_names, features, sample_length, reset_dur, include_indices)
 
-    if zip_path:
-        zf.close()
+    for file_path in all_compressed_files:
+        all_compressed_files[file_path][0].close()
 
     return features
 
@@ -185,31 +190,34 @@ def _create_h5py_file(output_path: Union[pathlib.Path, str], file_paths: Union[L
             out_file.create_dataset('indices', data=indices)
 
 
-def _read_config_file(config_path: Union[pathlib.Path, str]) -> Tuple[List, Union[pathlib.Path, str],
-                                                                      Union[pathlib.Path, str, None], int, dict]:
-    with open(args.config) as config_file:
+def _read_config_file(config_path: Union[pathlib.Path, str]) -> Tuple[
+    List[Tuple[str, str]], Union[pathlib.Path, str], int, dict]:
+    """
+    Reads zipfile/tarfile to extract audio files names and shuffles them if indicated in the configuration file.
+    """
+    with open(config_path) as config_file:
         config = json.load(config_file)
 
-        audios_path = pathlib.Path(config["audios_path"])
-        if audios_path.exists():
-            zip_file_bool = False
-            if zipfile.is_zipfile(audios_path):
-                zip_file_bool = True
-                file_paths = zipfile.ZipFile(audios_path).namelist()
-            elif tarfile.is_tarfile(audios_path):
-                zip_file_bool = True
-                file_paths = tarfile.open(audios_path).getnames()
-            zip_file = None
-            if not zip_file_bool:
-                file_paths = list(pathlib.Path(audios_path).glob('**/*.flac|**/*.wav'))
-                file_paths = sorted(file_paths)
+        audios_paths = config["audios_paths"]
+        file_paths = []
+        for audios_path in audios_paths:
+            if pathlib.Path(audios_path).exists():
+                file_paths_tmp = []
+                if zipfile.is_zipfile(audios_path):
+                    file_paths_tmp = zipfile.ZipFile(audios_path).namelist()
+                elif tarfile.is_tarfile(audios_path):
+                    file_paths_tmp = tarfile.open(audios_path).getnames()
+                else:
+                    warnings.warn(f"compressed file format not recognised: {audios_path}. File ignored")
+                    continue
+                file_paths_tmp = [(audios_path, audio_file) for audio_file in file_paths_tmp if
+                                  pathlib.Path(audio_file).suffix in ['.flac', '.wav']]
+                file_paths += file_paths_tmp
             else:
-                zip_file = audios_path
-                file_paths = [audio_file for audio_file in file_paths if pathlib.Path(audio_file).suffix in ['.flac',
-                                                                                                             '.wav']]
-            return file_paths, config["output_file"], zip_file, config["sample_length"], config["optional_args"]
-        else:
-            Exception(f"audios_path: {audios_path} does not exist.")
+                warnings.warn(f"audios_path: {audios_path} does not exist.")
+        if config["shuffle_files"]:
+            random.shuffle(file_paths)
+        return file_paths, config["output_file"], config["sample_length"], config["optional_args"]
 
 
 if __name__ == '__main__':
@@ -220,5 +228,5 @@ if __name__ == '__main__':
 
     parser.add_argument('--config', type=str, required=True)
     args = parser.parse_args()
-    file_paths, output_file, zip_file, sample_length, optional_args = _read_config_file(args.config)
-    extract_acoustic_features(file_paths, output_file, sample_length, zip_file, **optional_args)
+    file_paths, output_file, sample_length, optional_args = _read_config_file(args.config)
+    extract_acoustic_features(file_paths, output_file, sample_length, **optional_args)

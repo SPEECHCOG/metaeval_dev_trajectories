@@ -1,5 +1,6 @@
 {
-  "audios_path": "path_to_zip_or_folder_with_audio_files",
+  "audios_paths": "list_of_paths_to_compressed_files_with_audio_files",
+  "shuffle_files": "true/false",
   "output_file": "path_of_h5py_file",
   "sample_length": "number_of_frames_per_sample",
   "optional_args": {
