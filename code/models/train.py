@@ -36,12 +36,8 @@ def train(config_path):
     # Use correct model
     model_type = config['model']['type']
 
-    if model_type == 'autoencoder':
-        model = Autoencoder()
-    elif model_type == 'apc':
+    if model_type == 'apc':
         model = APCModel()
-    elif model_type == 'convpc':
-        model = ConvPCModel()
     elif model_type == 'cpc':
         model = CPCModel()
     else:
