@@ -4,11 +4,11 @@
 """
 import argparse
 import gc
-import io
 import json
 import pathlib
 import random
 import tarfile
+import tempfile
 import warnings
 import zipfile
 from typing import Optional, List, Union, Tuple
@@ -22,8 +22,7 @@ __docformat__ = ['reStructuredText']
 __all__ = ['extract_acoustic_features']
 
 
-def extract_acoustic_features(audio_paths: List[Tuple[str, str]],
-                              compressed_files_paths: List[str],
+def extract_acoustic_features(audio_paths: List[pathlib.Path],
                               output_file: Union[pathlib.Path, str], sample_length: int,
                               window_length: Optional[float] = 0.025, window_shift: Optional[float] = 0.01,
                               num_features: Optional[int] = 13, deltas: Optional[bool] = True,
@@ -43,29 +42,10 @@ def extract_acoustic_features(audio_paths: List[Tuple[str, str]],
     file_counter = 0
     output_file = pathlib.Path(output_file)
 
-    all_compressed_files = dict()
-    for file_path in compressed_files_paths:
-        if zipfile.is_zipfile(file_path):
-            all_compressed_files[file_path] = (zipfile.ZipFile(file_path), 'zip')
-        elif tarfile.is_tarfile(file_path):
-            all_compressed_files[file_path] = (tarfile.open(file_path), 'tar')
-
     for idx, file_path in enumerate(audio_paths):
-        compressed_file_path = file_path[0]
-        audio_file_path = file_path[1]
-        files_names.append(compressed_file_path + '/'+ audio_file_path)  # path including compressed file
-        compressed_file = all_compressed_files[compressed_file_path][0]  # tarfile or zipfile object
-        compressed_file_type = all_compressed_files[compressed_file_path][1]
-        if 'zip' == compressed_file_type:
-            with compressed_file.open(audio_file_path) as audio_file:
-                file_IO = io.BytesIO(audio_file.read())
-        elif 'tar' == compressed_file_type:
-            with compressed_file.extractfile(audio_file_path) as audio_file:
-                file_IO = io.BytesIO(audio_file.read())
-        else:
-            continue
+        files_names.append(file_path)  # path including compressed file
 
-        signal, sampling_freq = librosa.load(file_IO, sr=target_sampling_freq)
+        signal, sampling_freq = librosa.load(file_path, sr=target_sampling_freq)
 
         duration = (len(signal) / target_sampling_freq) / 3600  # in hours
         duration_h5py_file += duration
@@ -130,9 +110,6 @@ def extract_acoustic_features(audio_paths: List[Tuple[str, str]],
             output_file_tmp = output_file
         _create_h5py_file(output_file_tmp, files_names, features, sample_length, reset_dur, include_indices)
 
-    for file_path in all_compressed_files:
-        all_compressed_files[file_path][0].close()
-
     return features
 
 
@@ -191,37 +168,48 @@ def _create_h5py_file(output_path: Union[pathlib.Path, str], file_paths: Union[L
 
 
 def _read_config_file(config_path: Union[pathlib.Path, str]) -> Tuple[
-    List[Tuple[str, str]], List[str], Union[pathlib.Path, str], int, dict]:
+    List[pathlib.Path], List[tempfile.TemporaryDirectory], Union[pathlib.Path, str], int, dict]:
     """
     Reads zipfile/tarfile to extract audio files names and shuffles them if indicated in the configuration file.
     """
     with open(config_path) as config_file:
         config = json.load(config_file)
-
         compressed_files_paths = config["audios_paths"]
+        tmp_dirs = []
+        audio_exts = [".flac", ".wav"]
         file_paths = []
-        final_compressed_files_paths = []
         for compressed_file_path in compressed_files_paths:
             if pathlib.Path(compressed_file_path).exists():
-                file_paths_tmp = []
-                if zipfile.is_zipfile(compressed_file_path):
-                    file_paths_tmp = zipfile.ZipFile(compressed_file_path).namelist()
-                elif tarfile.is_tarfile(compressed_file_path):
-                    file_paths_tmp = tarfile.open(compressed_file_path).getnames()
+                if zipfile.is_zipfile(compressed_file_path) or tarfile.is_tarfile(compressed_file_path):
+                    tmp_dir = tempfile.TemporaryDirectory()
+                    tmp_dirs.append(tmp_dir)
+                    if zipfile.is_zipfile(compressed_file_path):
+                        zip = zipfile.ZipFile(compressed_file_path)
+                        members_tmp = zip.namelist()
+                        members = [audio_file for audio_file in members_tmp if
+                                   pathlib.Path(audio_file).suffix in ['.flac', '.wav']]
+                        zip.extractall(tmp_dir.name, members)
+                        zip.close()
+                    elif tarfile.is_tarfile(compressed_file_path):
+                        tar = tarfile.open(compressed_file_path)
+                        members_tmp = tar.getmembers()
+                        members = [member for member in members_tmp if
+                                   pathlib.Path(member.name).suffix in ['.flac', '.wav']]
+                        tar.extractall(tmp_dir.name, members)
+                        tar.close()
+                    file_paths += [audio_file for audio_file in pathlib.Path(tmp_dir.name).rglob("*") if
+                                   audio_file.suffix in audio_exts]
                 else:
                     warnings.warn(f"compressed file format not recognised: {compressed_file_path}. File ignored")
                     continue
-                final_compressed_files_paths.append(compressed_file_path)
-                file_paths_tmp = [(compressed_file_path, audio_file) for audio_file in file_paths_tmp if
-                                  pathlib.Path(audio_file).suffix in ['.flac', '.wav']]
-                file_paths += file_paths_tmp
             else:
                 warnings.warn(f"audios_path: {compressed_file_path} does not exist. File ignored")
                 continue
+
         if config["shuffle_files"]:
             random.shuffle(file_paths)
-        return file_paths, final_compressed_files_paths, config["output_file"], config["sample_length"], \
-               config["optional_args"]
+
+        return file_paths, tmp_dirs, config["output_file"], config["sample_length"], config["optional_args"]
 
 
 if __name__ == '__main__':
@@ -232,5 +220,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--config', type=str, required=True)
     args = parser.parse_args()
-    file_paths, compressed_files_paths, output_file, sample_length, optional_args = _read_config_file(args.config)
-    extract_acoustic_features(file_paths, compressed_files_paths, output_file, sample_length, **optional_args)
+    file_paths, tmp_dirs, output_file, sample_length, optional_args = _read_config_file(args.config)
+    extract_acoustic_features(file_paths, output_file, sample_length, **optional_args)
+    # delete temporal directory after process
+    for tmp_dir in tmp_dirs:
+        tmp_dir.cleanup()
