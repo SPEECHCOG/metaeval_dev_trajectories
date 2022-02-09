@@ -16,9 +16,7 @@ from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D, Con
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
-from core.create_prediction_files import create_prediction_files
 from core.model_base import ModelBase
-
 from core.utils import AttentionWeights
 
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -27,38 +25,13 @@ tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
 class APCModel(ModelBase):
 
-    def write_log(self, file_path):
+    def write_log(self, file_path: str):
         """
         Write the log of the configuration parameters used for training an APC model
         :param file_path: path where the file will be saved
         :return: a text logfile
         """
-        with open(file_path, 'w+', encoding='utf8') as f:
-            f.write('Training configuration: \n')
-            f.write('Source: ' + self.configuration['train_in'][0] + '\n')
-            f.write('Target: ' + self.configuration['train_out'][0] + '\n')
-            f.write('Features: ' + self.features_folder_name + '\n')
-            f.write('Language: ' + self.language + '\n\n')
-            f.write('Model configuration: \n')
-            f.write('epochs: ' + str(self.epochs) + '\n')
-            f.write('early stop epochs: ' + str(self.early_stop_epochs) + '\n')
-            f.write('batch size: ' + str(self.batch_size) + '\n')
-            f.write('latent dimension: ' + str(self.latent_dimension) + '\n\n')
-            f.write('APC configuration: \n')
-            for param in self.configuration['model']['apc']:
-                if param.startswith('prenet_'):
-                    if self.prenet:
-                        f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
-                else:
-                    f.write(param + ': ' + str(self.configuration['model']['apc'][param]) + '\n')
-
-    def load_prediction_configuration(self, config):
-        """
-        It uses implementation from ModelBase
-        :param config: dictionary with the configuration for predictions
-        :return: the instance model have all configuration parameters from config
-        """
-        super(APCModel, self).load_prediction_configuration(config)
+        super(APCModel, self).write_log(file_path)
 
     def train(self):
         """
@@ -129,64 +102,7 @@ class APCModel(ModelBase):
 
         return self.model
 
-    def predict(self, x_test, x_test_ind, duration):
-        """
-        It predicts the output features for the test set (x_test) and output the predictions in text files using
-        (x_test_ind). Instead of directly using the full size of latent representation, we used PCA analysis to reduce
-        dimensionality.
-        :param x_test: a numpy array with the test set (samples of input features in the same format than those used
-                       for training the model). It has dimension samples x time-steps x features.
-        :param x_test_ind: a numpy array with the indices (number of frame in the source audio) for each sample. The
-                           dimension is samples x time-steps x 2 (where the first number is the source audio identifier,
-                           and the second one is the number of the frame in the audio).
-        :param duration: a string with the duration of the audio files (1, 10 or 120)
-        :return: predictions will be saved in text files. The folder structure is kept.
-        """
-        self.model = load_model(self.model_path, compile=False, custom_objects={'AttentionWeights': AttentionWeights})
-
-        if self.use_last_layer:
-            predictor = self.model
-        else:
-            # Prediction of model will use latent representation (intermediate layer)
-            input_layer = self.model.get_layer('input_layer').output
-            latent_layer = self.model.get_layer('latent_layer').output
-            predictor = Model(input_layer, latent_layer)
-
-        # Calculate predictions dimensions (samples, 200, latent-dimension)
-        predictions = predictor.predict(x_test)
-
-        # Apply PCA only for latent layer representations
-        if not self.use_last_layer:
-            pca = PCA(0.95) # Keep components that coverage 95% of variance
-            pred_orig_shape = predictions.shape
-            predictions = predictions.reshape(-1, predictions.shape[-1])
-            predictions = pca.fit_transform(predictions)
-            pred_orig_shape = list(pred_orig_shape)
-            pred_orig_shape[-1] = predictions.shape[-1]
-            pred_orig_shape = tuple(pred_orig_shape)
-            predictions = predictions.reshape(pred_orig_shape)
-
-        # Create folder for predictions
-        full_predictions_folder_path = os.path.join(self.output_folder,self.model_folder_name,
-                                                    self.features_folder_name, self.language, (duration + 's'))
-        os.makedirs(full_predictions_folder_path, exist_ok=True)
-
-        if self.save_matlab:
-            # Save predictions in MatLab file using h5py formatting
-            import hdf5storage
-            output = dict()
-            output['pred'] = predictions
-            output['pred_ind'] = x_test_ind
-            hdf5storage.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'), output,
-                                format='7.3')
-
-        # Create predictions text files
-        total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
-                                              limit=self.files_limit)
-
-        print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))
-
-    def load_training_configuration(self, config, x_train, y_train, x_val=None, y_val=None):
+    def load_training_configuration(self, config):
         """
         It loads configuration from dictionary, and instantiates the model architecture
         :param config: a dictionary with the configuration parameters for training
@@ -194,7 +110,7 @@ class APCModel(ModelBase):
         :param y_train: a numpy array with the output features
         :return: an instance will have the parameters from configuration and the model architecture
         """
-        super(APCModel, self).load_training_configuration(config, x_train, y_train, x_val, y_val)
+        super(APCModel, self).load_training_configuration(config)
 
         # Model architecture: PreNet (stacked linear layers with ReLU activation and dropout) ->
         # APC (multi-layer GRU network) -> Postnet(Conv1D this is only used during training)

@@ -15,8 +15,7 @@ from tensorflow.keras.layers import Dropout, Input, GRU, Dense, Concatenate
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
-from core.utils import Fea, ContrastiveLoss
-from core.create_prediction_files import create_prediction_files
+from core.utils import FeatureEncoder, ContrastiveLoss
 from core.model_base import ModelBase
 from core.apc import AttentionWeights
 
@@ -24,80 +23,17 @@ physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
 
-class RatioEarlyStopping(Callback):
-    def __init__(self, ratio=0.0, patience=0, verbose=0, restore_best_weights=False):
-        super(RatioEarlyStopping, self).__init__()
-
-        self.ratio = ratio
-        self.patience = patience
-        self.verbose = verbose
-        self.restore_best_weights = restore_best_weights
-        self.wait = 0
-        self.stopped_epoch = 0
-        self.best_weights = None
-
-    def on_train_begin(self, logs=None):
-        self.wait = 0
-        self.stopped_epoch = 0
-
-    def on_epoch_end(self, epoch, logs=None):
-        val_loss = logs.get('val_loss')
-        train_loss = logs.get('loss')
-        current_ratio =  train_loss/val_loss
-
-        if current_ratio is None:
-            return
-        if current_ratio > self.ratio:
-            self.wait = 0
-            if self.restore_best_weights:
-                self.best_weights = self.model.get_weights()
-        else:
-            self.wait += 1
-            if self.wait >= self.patience:
-                self.stopped_epoch = epoch
-                self.model.stop_training = True
-                if self.restore_best_weights:
-                    if self.verbose > 0:
-                        print('Restoring model weights from the end of the best epoch.')
-                    self.model.set_weights(self.best_weights)
-
-    def on_train_end(self, logs=None):
-        if self.stopped_epoch > 0 and self.verbose > 0:
-            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
-
-
 class CPCModel(ModelBase):
 
-    def write_log(self, file_path):
+    def write_log(self, file_path: str):
         """
         Write the log of the configuration parameters used for training a CPC model
         :param file_path: path where the file will be saved
         :return: a text logfile
         """
-        with open(file_path, 'w+', encoding='utf8') as f:
-            f.write('Training configuration: \n')
-            f.write('Source: ' + self.configuration['train_in'][0] + '\n')
-            f.write('Target: ' + self.configuration['train_out'][0] + '\n')
-            f.write('Features: ' + self.features_folder_name + '\n')
-            f.write('Language: ' + self.language + '\n\n')
-            f.write('Model configuration: \n')
-            f.write('epochs: ' + str(self.epochs) + '\n')
-            f.write('early stop epochs: ' + str(self.early_stop_epochs) + '\n')
-            f.write('batch size: ' + str(self.batch_size) + '\n')
-            f.write('CPC configuration: \n')
-            for param in self.configuration['model']['cpc']:
-                f.write(param + ': ' + str(self.configuration['model']['cpc'][param]) + '\n')
+        super(CPCModel, self).write_log(file_path)
 
-    def load_prediction_configuration(self, config):
-        """
-        It uses implementation from ModelBase
-        :param config: dictionary with the configuration for predictions
-        :return: the instance model have all configuration parameters from config
-        """
-        super(CPCModel, self).load_prediction_configuration(config)
-        self.use_pca = config['use_pca']
-
-    def load_training_configuration(self, config, x_train, y_train, x_val=None, y_val=None):
+    def load_training_configuration(self, config):
         """
         It instantiates the model architecture using the parameters from the configuration file.
         :param config: Dictionary with the configuration parameters
@@ -105,7 +41,7 @@ class CPCModel(ModelBase):
         :param y_train: Output training data (not used in this model)
         :return: an instance will have the parameters from configuration and the model architecture
         """
-        super(CPCModel, self).load_training_configuration(config, x_train, y_train, x_val, y_val)
+        super(CPCModel, self).load_training_configuration(config)
 
         # Model architecture: Feature_Encoder -> Dropout -> GRU -> Dropout
         cpc_config = config['model']['cpc']
@@ -203,7 +139,6 @@ class CPCModel(ModelBase):
 
         # Callbacks for training
         # Adding early stop based on validation loss and saving best model for later prediction
-        # ratio_early_stop = RatioEarlyStopping(ratio=0.98, verbose=1, patience=self.early_stop_epochs)
         if self.statistical_analysis:
             checkpoint = ModelCheckpoint(model_file_name + '-{epoch:d}_{val_loss:.6f}' + '.h5', monitor='val_loss',
                                          mode='min', verbose=1,
@@ -235,61 +170,3 @@ class CPCModel(ModelBase):
                            validation_split=0.3, callbacks=callbacks)
 
         return self.model
-
-    def predict(self, x_test, x_test_ind, duration):
-        """
-        It predicts the representation for input test set.
-        :param x_test: a numpy array with the test features
-        :param x_test_ind: a numpy array as a lookup table for matching frames with utterances
-        :param duration: duration of the utterances
-        :return: predictions for the test set in txt files
-        """
-        self.model = load_model(self.model_path, compile=False, custom_objects={'FeatureEncoder': FeatureEncoder,
-                                                                                'ContrastiveLoss': ContrastiveLoss,
-                                                                                'AttentionWeights': AttentionWeights})
-
-        if self.use_last_layer:
-            # Predict using the latent representations (APC output)
-            input_layer = self.model.get_layer('input_layer').output
-            latent_layer = self.model.get_layer('Feature_Encoder').get_layer('cpc_latent_layer').output
-            predictor = Model(input_layer, latent_layer)
-
-            predictions = predictor.predict(x_test)
-        else:
-            # Predict using the context representations (CPC output)
-            input_layer = self.model.get_layer('input_layer').output
-            context_layer = self.model.get_layer('autoregressive_layer').output
-            predictor = Model(input_layer, context_layer)
-
-            predictions = predictor.predict(x_test)
-
-        # Apply PCA only if true in the configuration file.
-        if self.use_pca:
-            pca = PCA(0.95)  # Keep components that coverage 95% of variance
-            pred_orig_shape = predictions.shape
-            predictions = predictions.reshape(-1, predictions.shape[-1])
-            predictions = pca.fit_transform(predictions)
-            pred_orig_shape = list(pred_orig_shape)
-            pred_orig_shape[-1] = predictions.shape[-1]
-            pred_orig_shape = tuple(pred_orig_shape)
-            predictions = predictions.reshape(pred_orig_shape)
-
-        # Create folder for predictions
-        full_predictions_folder_path = os.path.join(self.output_folder, self.model_folder_name,
-                                                    self.features_folder_name, self.language, (duration + 's'))
-        os.makedirs(full_predictions_folder_path, exist_ok=True)
-
-        if self.save_matlab:
-            # Save predictions in MatLab file using h5py formatting
-            import hdf5storage
-            output = dict()
-            output['pred'] = predictions
-            output['pred_ind'] = x_test_ind
-            hdf5storage.savemat(os.path.join(full_predictions_folder_path, self.language + '.mat'), output,
-                                format='7.3')
-
-        # Create predictions text files
-        total_files = create_prediction_files(predictions, x_test_ind, full_predictions_folder_path, self.window_shift,
-                                              limit=self.files_limit)
-
-        print('Predictions of {0} with duration {1}s: {2} files'.format(self.language, duration, total_files))

@@ -8,10 +8,10 @@ import sys
 
 from core.apc import APCModel
 from core.cpc import CPCModel
-from read_configuration import read_configuration_json, load_training_features, load_python_training_features
+from read_configuration import read_configuration_json
 
 
-def train(config_path):
+def train(config_path: str) -> None:
     """
     Train a neural network model using the configuration parameters provided
     :param config_path: the path to the JSON configuration file.
@@ -19,19 +19,7 @@ def train(config_path):
     """
 
     # read configuration file
-    config = read_configuration_json(config_path, True, False)['training']
-
-    # Obtain input/output features to train the model
-    if config['features_type'] == 'matlab':
-        x_train, y_train = load_training_features(config['train_in'], config['train_out'])
-        x_val, y_val = None, None
-    else:
-        input_feats = config['input_features']
-        shift = (config['model']['type'] == 'apc' or config['model']['type'] == 'convpc')
-        x_train, x_val, y_train, y_val = load_python_training_features(input_feats['train'],
-                                                                       input_feats['validation'],
-                                                                       steps=input_feats['shift'],
-                                                                       shift=shift)
+    config = read_configuration_json(config_path)['training']
 
     # Use correct model
     model_type = config['model']['type']
@@ -43,7 +31,7 @@ def train(config_path):
     else:
         raise Exception('The model type "%s" is not supported' % model_type)
 
-    model.load_training_configuration(config, x_train, y_train, x_val, y_val)
+    model.load_training_configuration(config)
     model.train()
 
     print('Training of model "%s" finished' % model_type)
