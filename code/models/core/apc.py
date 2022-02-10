@@ -14,7 +14,7 @@ from tensorflow.keras.optimizers import Adam
 
 from core.model_base import ModelBase
 from core.utils import AttentionWeights
-from read_configuration import load_all_training_data, load_training_file
+from read_configuration import load_all_training_data, load_training_file, load_epoch_training_data
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
@@ -132,15 +132,19 @@ class APCModel(ModelBase):
 
         callbacks = super(APCModel, self).train()  # configurations of model
 
+        x_val, y_val = load_training_file(self.path_validation_data, shift=True, steps=self.steps_shift)
+
         # Check input data schedule
         if self.data_schedule == 'all':
             # Train the model
             x_train, y_train = load_all_training_data(self.path_train_data, shift=True, steps=self.steps_shift)
-            x_val, y_val = load_training_file(self.path_validation_data, shift=True, steps=self.steps_shift)
             self.model.fit(x_train, y_train, epochs=self.epochs, batch_size=self.batch_size,
                            validation_data=(x_val, y_val), callbacks=callbacks)
         elif self.data_schedule == 'epoch':
-            # Manual
-            pass
+            path_input_data = load_epoch_training_data(self.path_train_data)
+            for idx, path_data in enumerate(path_input_data):
+                x_train, y_train = load_training_file(path_data, shift=True, steps=self.steps_shift)
+                self.model.fit(x_train, y_train, epochs=idx+1, batch_size=self.batch_size,
+                               validation_data=(x_val, y_val), initial_epoch=idx, callbacks=callbacks)
 
         return self.model
