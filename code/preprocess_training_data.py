@@ -5,6 +5,7 @@
 import argparse
 import gc
 import json
+import os
 import pathlib
 import random
 import tarfile
@@ -158,6 +159,7 @@ def _create_h5py_file(output_path: Union[pathlib.Path, str], file_paths: Union[L
     data = data.reshape((total_samples, sample_length, -1))
     indices = indices.reshape((total_samples, sample_length, -1))
 
+    os.makedirs(pathlib.Path(output_path).parent, exist_ok=True)
     with h5py.File(pathlib.Path(output_path), 'w') as out_file:
         out_file.create_dataset('data', data=data)
         if include_indices:
