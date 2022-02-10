@@ -17,6 +17,7 @@ from tensorflow.keras.optimizers import Adam
 from core.utils import FeatureEncoder, ContrastiveLoss
 from core.model_base import ModelBase
 from core.apc import AttentionWeights
+from read_configuration import load_training_file, load_all_training_data, load_epoch_training_data
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
@@ -98,65 +99,24 @@ class CPCModel(ModelBase):
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss={'Contrastive_Loss': lambda y_true, y_pred: y_pred})
 
-        callbacks = []
+        callbacks = super(CPCModel, self).train()
 
-        if self.statistical_analysis:
-            model_full_path = os.path.join(self.full_path_output_folder,
-                                           self.configuration['statistical_analysis']['system'],
-                                           str(self.configuration['statistical_analysis']['model_id']))
-            os.makedirs(model_full_path, exist_ok=True)
-            model_file_name = os.path.join(self.full_path_output_folder,
-                                           self.configuration['statistical_analysis']['system'],
-                                           str(self.configuration['statistical_analysis']['model_id']),
-                                           self.language +
-                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-            model_file_name_txt = os.path.join(self.full_path_output_folder,
-                                               self.configuration['statistical_analysis']['system'],
-                                               self.language +
-                                               datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-        else:
-            # Model file name for checkpoint and log
-            model_file_name = os.path.join(self.full_path_output_folder, self.language +
-                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-            model_file_name_txt = model_file_name
-
-        # log
-        self.write_log(model_file_name_txt + '.txt')
-
-        if self.save_untrained:
-            folder_path, file_name = os.path.split(model_file_name_txt)
-            self.model.save(f'{folder_path}/untrained_{file_name}.h5')
-
-        # Callbacks for training
-        # Adding early stop based on validation loss and saving best model for later prediction
-        if self.statistical_analysis:
-            checkpoint = ModelCheckpoint(model_file_name + '-{epoch:d}_{val_loss:.6f}' + '.h5', monitor='val_loss',
-                                         mode='min', verbose=1,
-                                         period=self.configuration['statistical_analysis']['period'])
-            callbacks.append(checkpoint)
-        else:
-            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-            # lr_on_plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, verbose=1, mode='min')
-            checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min',
-                                     verbose=1, save_best_only=True)
-            callbacks.append(early_stop)
-            callbacks.append(checkpoint)
-
-        # Tensorboard
-        log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
-        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
-        callbacks.append(tensorboard)
-
-        # Train the model
+        x_val, _ = load_training_file(self.path_validation_data, shift=False)
         # Create dummy prediction so that Keras does not raise an error for wrong dimension
-        y_dummy = np.random.rand(self.x_train.shape[0], 1, 1)
-
-        if self.x_val is not None:
-            y_val_dummy = np.random.rand(self.x_val.shape[0], 1, 1)
-            self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
-                           validation_data=(self.x_val, y_val_dummy), callbacks=callbacks)
-        else:
-            self.model.fit(x=self.x_train, y=y_dummy, epochs=self.epochs, batch_size=self.batch_size,
-                           validation_split=0.3, callbacks=callbacks)
+        y_val = np.random.rand(x_val.shape[0], 1, 1)
+        # Check input data schedule
+        if self.data_schedule == 'all':
+            # Train the model
+            x_train, _ = load_all_training_data(self.path_train_data, shift=False)
+            y_train = np.random.rand(x_train.shape[0], 1, 1)
+            self.model.fit(x_train, y_train, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_data=(x_val, y_val), callbacks=callbacks)
+        elif self.data_schedule == 'epoch':
+            path_input_data = load_epoch_training_data(self.path_train_data)
+            for idx, path_data in enumerate(path_input_data):
+                x_train, _ = load_training_file(path_data, shift=False)
+                y_train = np.random.rand(x_train.shape[0], 1, 1)
+                self.model.fit(x_train, y_train, epochs=idx + 1, batch_size=self.batch_size,
+                               validation_data=(x_val, y_val), initial_epoch=idx, callbacks=callbacks)
 
         return self.model

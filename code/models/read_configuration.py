@@ -21,8 +21,6 @@ TRAINING_CONFIG = [
     ('language', str, 'mandarin', False),
     ('model', dict, None, True),
     ('input_features', dict, None, False),
-    ('statistical_analysis', dict, None, False),
-    ('dataset_percentage', int, 100, False),
     ('save_untrained', bool, False, False),
     ('checkpoint_period', int, None, False),
     ('data_schedule', str, 'all', True)
@@ -36,7 +34,6 @@ TRAINING_MODEL_CONFIG = [
     ('batch_size', int, 32, False),
     ('latent_dimension', int, None, True),
     ('apc', dict, None, False),
-    ('convpc', dict, None, False),
     ('input_attention', bool, False, False)
 ]
 
