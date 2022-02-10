@@ -52,6 +52,9 @@ class ModelBase(ABC):
         self.data_schedule = config['data_schedule']
         self.checkpoint_period = config['checkpoint_period']
         self.save_untrained = config['save_untrained']
+        self.features = model_config['num_features']
+        self.sample_size = model_config['sample_size']  # frames per sample
+        self.input_size = (self.sample_size, self.features)  # input features dim (samples x frames x features)
 
         # Create folder structure where to save the model/checkpoints
         self.full_path_output_folder = os.path.join(self.output_folder, self.name, self.features_folder_name)

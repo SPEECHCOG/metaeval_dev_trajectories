@@ -9,7 +9,6 @@ from datetime import datetime
 import numpy as np
 import tensorflow as tf
 from keras import backend as K
-from sklearn.decomposition import PCA
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback, ReduceLROnPlateau
 from tensorflow.keras.layers import Dropout, Input, GRU, Dense, Concatenate
 from tensorflow.keras.models import Model, load_model
@@ -37,8 +36,6 @@ class CPCModel(ModelBase):
         """
         It instantiates the model architecture using the parameters from the configuration file.
         :param config: Dictionary with the configuration parameters
-        :param x_train: Input training data
-        :param y_train: Output training data (not used in this model)
         :return: an instance will have the parameters from configuration and the model architecture
         """
         super(CPCModel, self).load_training_configuration(config)
@@ -61,10 +58,6 @@ class CPCModel(ModelBase):
         self.dropout = cpc_config['dropout']
         self.learning_rate = cpc_config['learning_rate']
 
-        # Input shape
-        self.input_shape = self.x_train.shape[1:]
-        self.features = self.x_train.shape[2]
-
         # Input tensor
         input_feats = Input(shape=self.input_shape, name='input_layer')
         # Feature Encoder
@@ -82,11 +75,8 @@ class CPCModel(ModelBase):
 
         if self.input_attention:
             # add self-attention layer after input features
-            # query = Dense(self.features, use_bias=False, name='query_attention')(encoder_features)
-            # value = Dense(self.features, use_bias=False, name='value_attention')(encoder_features)
             attention_output, _ = AttentionWeights(name='attention_layer', causal=True)([autoregressive_output,
                                                                                          autoregressive_output])
-            # input_feats_att = Concatenate()([autoregressive_output, attention_output])
             autoregressive_output = attention_output
 
         autoregressive_output = dropout_layer(autoregressive_output)
