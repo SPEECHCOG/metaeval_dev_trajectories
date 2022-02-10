@@ -6,17 +6,15 @@ Autoregressive Predictive Coding model
 This corresponds to a translation from the Pytorch implementation
 (https://github.com/iamyuanchung/Autoregressive-Predictive-Coding) to Keras implementation
 """
-import os
-from datetime import datetime
 
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D, Concatenate
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
 
 from core.model_base import ModelBase
 from core.utils import AttentionWeights
+from read_configuration import load_all_training_data, load_training_file
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
@@ -54,6 +52,7 @@ class APCModel(ModelBase):
         self.rnn_units = apc_config['rnn_units']
         self.residual = apc_config['residual']
         self.learning_rate = apc_config['learning_rate']
+        self.steps_shift = config['input_features']
 
         # Input tensor
         input_feats = Input(shape=self.input_shape, name='input_layer')
@@ -131,61 +130,17 @@ class APCModel(ModelBase):
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss='mean_absolute_error')
 
-        callbacks = []
+        callbacks = super(APCModel, self).train()  # configurations of model
 
-        if self.statistical_analysis:
-            model_full_path = os.path.join(self.full_path_output_folder,
-                                                        self.configuration['statistical_analysis']['system'],
-                                                        str(self.configuration['statistical_analysis']['model_id']))
-            os.makedirs(model_full_path, exist_ok=True)
-            model_file_name = os.path.join(self.full_path_output_folder,
-                                           self.configuration['statistical_analysis']['system'],
-                                           str(self.configuration['statistical_analysis']['model_id']),
-                                           self.language +
-                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-            model_file_name_txt = os.path.join(self.full_path_output_folder,
-                                           self.configuration['statistical_analysis']['system'],
-                                           self.language +
-                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-        else:
-            # Model file name for checkpoint and log
-            model_file_name = os.path.join(self.full_path_output_folder, self.language +
-                                           datetime.now().strftime("_%Y_%m_%d-%H_%M"))
-            model_file_name_txt = model_file_name
-
-        # log
-        self.write_log(model_file_name_txt + '.txt')
-
-        if self.save_untrained:
-            folder_path, file_name = os.path.split(model_file_name_txt)
-            self.model.save(f'{folder_path}/untrained_{file_name}.h5')
-
-        # Callbacks for training
-        # Adding early stop based on validation loss and saving best model for later prediction
-        if self.statistical_analysis:
-            checkpoint = ModelCheckpoint(model_file_name + '-{epoch:d}_{val_loss:.6f}' + '.h5', monitor='val_loss',
-                                         mode='min', verbose=1,
-                                         period=self.configuration['statistical_analysis']['period'])
-            callbacks.append(checkpoint)
-        else:
-            early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
-            checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min', verbose=1,
-                                         save_best_only=True)
-            callbacks.append(early_stop)
-            callbacks.append(checkpoint)
-
-        # Tensorboard
-        log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
-        tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
-        callbacks.append(tensorboard)
-
-
-        # Train the model
-        if self.x_val is not None:
-            self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size,
-                           validation_data=(self.x_val, self.y_val), callbacks=callbacks)
-        else:
-            self.model.fit(self.x_train, self.y_train, epochs=self.epochs, batch_size=self.batch_size,
-                           validation_split=0.3, callbacks=callbacks)
+        # Check input data schedule
+        if self.data_schedule == 'all':
+            # Train the model
+            x_train, y_train = load_all_training_data(self.path_train_data, shift=True, steps=self.steps_shift)
+            x_val, y_val = load_training_file(self.path_validation_data, shift=True, steps=self.steps_shift)
+            self.model.fit(x_train, y_train, epochs=self.epochs, batch_size=self.batch_size,
+                           validation_data=(x_val, y_val), callbacks=callbacks)
+        elif self.data_schedule == 'epoch':
+            # Manual
+            pass
 
         return self.model

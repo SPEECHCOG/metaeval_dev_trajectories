@@ -24,7 +24,7 @@ TRAINING_CONFIG = [
     ('statistical_analysis', dict, None, False),
     ('dataset_percentage', int, 100, False),
     ('save_untrained', bool, False, False),
-    ('checkpoint_period', int, -1, False),
+    ('checkpoint_period', int, None, False),
     ('data_schedule', str, 'all', True)
 ]
 
@@ -42,8 +42,7 @@ TRAINING_MODEL_CONFIG = [
 
 INPUT_FEATURES_CONFIG = [
     ('train', str, None, True),
-    ('validation', str, None, True),
-    ('shift', int, 5, False)
+    ('validation', str, None, True)
 ]
 
 APC_CONFIG = [
@@ -55,7 +54,8 @@ APC_CONFIG = [
     ('rnn_dropout', float, 0, False),
     ('rnn_units', int, 512, False),
     ('residual', bool, True, False),
-    ('learning_rate', float, 0.001, False)
+    ('learning_rate', float, 0.001, False),
+    ('steps_shift', int, 5, False)
 ]
 
 CPC_CONFIG = [
@@ -215,13 +215,13 @@ def load_training_file(path: Union[pathlib.Path, str], shift: Optional[bool] = F
 
 def load_epoch_training_data(path: Union[pathlib.Path, str]) -> List[pathlib.Path]:
     """
-    It returns the files located in path.
+    It returns the files located in path sorted by size (from largest to smallest).
     :param path: a directory path
     :return: list of files within the directory
     """
     path = pathlib.Path(path)
     if path.is_dir():
-        h5py_files = [h5py_file for h5py_file in path.iterdir()]
+        h5py_files = sorted([h5py_file for h5py_file in path.iterdir()], key=lambda x: os.stat(x).st_size, reverse=True)
     else:
         raise Exception(f"Input features path should be a directory: {path}")
     return h5py_files
