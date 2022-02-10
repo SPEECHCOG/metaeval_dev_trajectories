@@ -58,7 +58,7 @@ class ModelBase(ABC):
         self.save_untrained = config['save_untrained']
         self.features = model_config['num_features']
         self.sample_size = model_config['sample_size']  # frames per sample
-        self.input_size = (self.sample_size, self.features)  # input features dim (samples x frames x features)
+        self.input_shape = (self.sample_size, self.features)  # input features dim (samples x frames x features)
         self.path_train_data = config['input_features']['train']
         self.path_validation_data = config['input_features']['validation']
 

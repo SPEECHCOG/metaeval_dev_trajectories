@@ -52,7 +52,7 @@ class APCModel(ModelBase):
         self.rnn_units = apc_config['rnn_units']
         self.residual = apc_config['residual']
         self.learning_rate = apc_config['learning_rate']
-        self.steps_shift = config['input_features']
+        self.steps_shift = apc_config['steps_shift']
 
         # Input tensor
         input_feats = Input(shape=self.input_shape, name='input_layer')
