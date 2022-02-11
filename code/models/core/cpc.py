@@ -8,7 +8,6 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, Callback, ReduceLROnPlateau
 from tensorflow.keras.layers import Dropout, Input, GRU, Dense, Concatenate
 from tensorflow.keras.models import Model, load_model

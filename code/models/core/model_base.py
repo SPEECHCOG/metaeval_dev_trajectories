@@ -8,9 +8,11 @@ import json
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Union
+from typing import List, Union, Tuple
 
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+
+from core.utils import ModelCheckpointBatch
 
 
 class ModelBase(ABC):
@@ -53,9 +55,13 @@ class ModelBase(ABC):
         self.features_folder_name = config['features_folder_name']
         self.language = config['language']
         self.input_attention = model_config['input_attention']
-        self.data_schedule = config['data_schedule']
-        self.checkpoint_period = config['checkpoint_period']
-        self.save_untrained = config['save_untrained']
+        self.data_schedule = model_config['data_schedule']
+        self.loop_epoch_data = model_config['loop_epoch_data']
+        self.checkpoint_epoch_period = model_config['checkpoint_epoch_period']
+        self.checkpoint_sample_period = model_config['checkpoint_sample_period']
+        self.monitor_first_epoch = model_config['monitor_first_epoch']
+        self.save_untrained = model_config['save_untrained']
+        self.save_best = model_config['save_best']
         self.features = model_config['num_features']
         self.sample_size = model_config['sample_size']  # frames per sample
         self.input_shape = (self.sample_size, self.features)  # input features dim (samples x frames x features)
@@ -69,7 +75,7 @@ class ModelBase(ABC):
         os.makedirs(self.logs_folder_path, exist_ok=True)
 
     @abstractmethod
-    def train(self) -> List[Union[TensorBoard, ModelCheckpoint, EarlyStopping]]:
+    def train(self) -> Tuple[List, List, List]:
         """
         It sets model's path and callbacks according to configuration provided.
         :return: trained model
@@ -87,24 +93,41 @@ class ModelBase(ABC):
 
         # Callbacks for training
         callbacks = []
-        # Tensorboard
+        callbacks_first_epoch = []
+
+        # Tensorboard log directory
         log_dir = os.path.join(self.logs_folder_path, self.language, datetime.now().strftime("%Y_%m_%d-%H_%M"))
         tensorboard = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0)
         callbacks.append(tensorboard)
-
-        if self.checkpoint_period is not None:
-            checkpoint = ModelCheckpoint(f'{model_file_name}_epoch-{{epoch:d}}.h5', monitor='val_loss',
-                                         mode='min', verbose=1, period=self.checkpoint_period)
-            callbacks.append(checkpoint)
-        else:
-            # Adding early stop based on validation loss and saving best model for later prediction
+        # early stop based on validation loss
+        if self.early_stop_epochs is not None:
             early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=self.early_stop_epochs)
+            callbacks.append(early_stop)
+        # save model with the best validation loss across all training steps.
+        if self.save_best:
             checkpoint = ModelCheckpoint(model_file_name + '.h5', monitor='val_loss', mode='min', verbose=1,
                                          save_best_only=True)
-            callbacks.append(early_stop)
-            callbacks.append(checkpoint)
+        else:
+            checkpoint = ModelCheckpoint(f'{model_file_name}_epoch-{{epoch:d}}.h5', monitor='val_loss',
+                                         mode='min', verbose=1, period=self.checkpoint_epoch_period)
+        callbacks.append(checkpoint)
 
-        return callbacks
+        if self.data_schedule == 'epoch':
+            # Only for data schedule 'epoch' monitoring the first epoch can be done.
+            if self.monitor_first_epoch:
+                tensorboard_fe = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0,
+                                             update_freq=self.checkpoint_sample_period)
+                callbacks_first_epoch.append(tensorboard_fe)
+                if not self.save_best:
+                    checkpoint_fe = ModelCheckpointBatch(f'{model_file_name}_epoch-{{epoch:d}}_{{batch:d}}.h5',
+                                                         monitor='val_loss', mode='min', verbose=1,
+                                                         save_freq=self.checkpoint_sample_period)
+                    callbacks_first_epoch.append(checkpoint_fe)
+                else:
+                    callbacks_first_epoch.append(checkpoint)
+
+
+        return callbacks, callbacks_first_epoch
 
 
 

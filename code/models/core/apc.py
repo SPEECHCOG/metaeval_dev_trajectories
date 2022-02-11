@@ -8,6 +8,7 @@ This corresponds to a translation from the Pytorch implementation
 """
 
 import tensorflow as tf
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D, Concatenate
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.optimizers import Adam
@@ -129,8 +130,8 @@ class APCModel(ModelBase):
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss='mean_absolute_error')
-
-        callbacks = super(APCModel, self).train()  # configurations of model
+        # configurations of model
+        callbacks, callbacks_first_epoch = super(APCModel, self).train()
 
         x_val, y_val = load_training_file(self.path_validation_data, shift=True, steps=self.steps_shift)
 
@@ -142,9 +143,37 @@ class APCModel(ModelBase):
                            validation_data=(x_val, y_val), callbacks=callbacks)
         elif self.data_schedule == 'epoch':
             path_input_data = load_epoch_training_data(self.path_train_data)
-            for idx, path_data in enumerate(path_input_data):
-                x_train, y_train = load_training_file(path_data, shift=True, steps=self.steps_shift)
-                self.model.fit(x_train, y_train, epochs=idx+1, batch_size=self.batch_size,
-                               validation_data=(x_val, y_val), initial_epoch=idx, callbacks=callbacks)
+            total_epochs_per_iteration = len(path_input_data)
+            total_iterations = 1 if not self.loop_epoch_data else self.epochs
+            best_val_loss = float('inf')
+            wait = 0
+            epoch = 0
+            stop = False
+            while epoch < total_iterations:
+                if epoch < total_epochs_per_iteration and epoch == 0 and self.monitor_first_epoch:
+                    custom_callbacks = callbacks_first_epoch
+                else:
+                    custom_callbacks = callbacks
+                for path_data in path_input_data:
+                    x_train, y_train = load_training_file(path_data, shift=True, steps=self.steps_shift)
+                    history = self.model.fit(x_train, y_train, epochs=epoch+1, batch_size=self.batch_size,
+                                             validation_data=(x_val, y_val), initial_epoch=epoch,
+                                             callbacks=custom_callbacks)
+                    epoch += 1
+                    # Allow early stopping when there is more than one iteration over the training data.
+                    if self.early_stop_epochs is not None:
+                        if epoch >= total_epochs_per_iteration:
+                            if wait >= self.early_stop_epochs:
+                                stop = True
+                                break
+                            current_val_loss = history.history['val_loss'][0]
+                            if current_val_loss < best_val_loss:
+                                best_val_loss = current_val_loss
+                                wait = 0
+                            else:
+                                wait += 1
+                if stop:
+                    print(f'Epoch {epoch:05d}: early stopping')
+                    break
 
         return self.model

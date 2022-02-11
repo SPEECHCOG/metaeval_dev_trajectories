@@ -20,21 +20,25 @@ TRAINING_CONFIG = [
     ('features_folder_name', str, None, True),
     ('language', str, 'mandarin', False),
     ('model', dict, None, True),
-    ('input_features', dict, None, False),
-    ('save_untrained', bool, False, False),
-    ('checkpoint_period', int, None, False),
-    ('data_schedule', str, 'all', True)
+    ('input_features', dict, None, False)
 ]
 
 TRAINING_MODEL_CONFIG = [
     ('name', str, None, True),
     ('type', str, None, True),
     ('epochs', int, 100, False),
-    ('early_stop_epochs', int, 50, False),
+    ('early_stop_epochs', int, None, False),
     ('batch_size', int, 32, False),
     ('latent_dimension', int, None, True),
     ('apc', dict, None, False),
-    ('input_attention', bool, False, False)
+    ('input_attention', bool, False, False),
+    ('save_untrained', bool, False, False),
+    ('save_best', bool, True, False),
+    ('checkpoint_epoch_period', int, None, False),
+    ('checkpoint_sample_period', int, None, False),
+    ('monitor_first_epoch', bool, False, False),
+    ('data_schedule', str, 'all', True),
+    ('loop_epoch_data', bool, False, False)
 ]
 
 INPUT_FEATURES_CONFIG = [
@@ -108,7 +112,7 @@ def _validate_training(config):
     _validate_fields(config['training']['model'], TRAINING_MODEL_CONFIG)
 
     # Validate data schedule
-    if config['training']['data_schedule'] not in DATA_SCHEDULES:
+    if config['training']['model']['data_schedule'] not in DATA_SCHEDULES:
         raise Exception('Only ' + ', '.join(DATA_SCHEDULES) + ' are supported.')
 
     # Validate training files fields

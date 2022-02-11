@@ -221,3 +221,34 @@ class AttentionWeights(Attention):
             scores -= 1.e9 * math_ops.cast(padding_mask, dtype=K.floatx())
         weights = nn.softmax(scores)
         return math_ops.matmul(weights, value), weights
+
+
+class ModelCheckpointBatch(tf.keras.callbacks.ModelCheckpoint):
+    """
+    Allows to have batch number in the checkpoint file path.
+    This is not required in newer tf versions (https://github.com/tensorflow/tensorflow/pull/38669/files)
+    """
+    def __init__(self, filepath, **kwargs):
+        """
+        Add total samples seen in epoch
+        """
+        super(ModelCheckpointBatch, self).__init__(filepath, **kwargs)
+        self._samples_seen_in_epoch = 0
+
+    def on_batch_end(self, batch, logs=None):
+        """
+        Overwrites the base method so it uses batch number in the file path.
+        :param batch: number of batch
+        :param logs: logs (e.g., validation loss, number of seen samples)
+        """
+        logs = logs or {}
+        if isinstance(self.save_freq, int):
+            self._samples_seen_since_last_saving += logs.get('size', 1)
+            self._samples_seen_in_epoch += self._samples_seen_since_last_saving
+            if self._samples_seen_since_last_saving >= self.save_freq:
+                filepath = self.filepath.format(epoch=self._current_epoch+1, batch=batch, **logs)
+                self.model.save(filepath)
+                if self.verbose > 0:
+                    print(f'\nEpoch {self._current_epoc + 1:d} - Samples: {self._samples_seen_in_epoch} saving model '
+                          f'to {filepath}')
+                self._samples_seen_since_last_saving = 0
