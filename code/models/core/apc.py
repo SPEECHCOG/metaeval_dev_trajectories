@@ -150,11 +150,11 @@ class APCModel(ModelBase):
             epoch = 0
             stop = False
             while epoch < total_iterations:
-                if epoch < total_epochs_per_iteration and epoch == 0 and self.monitor_first_epoch:
-                    custom_callbacks = callbacks_first_epoch
-                else:
-                    custom_callbacks = callbacks
-                for path_data in path_input_data:
+                for idx, path_data in enumerate(path_input_data):
+                    if epoch == 0 and self.monitor_first_epoch and idx == 0:
+                        custom_callbacks = callbacks_first_epoch
+                    else:
+                        custom_callbacks = callbacks
                     x_train, y_train = load_training_file(path_data, shift=True, steps=self.steps_shift)
                     history = self.model.fit(x_train, y_train, epochs=epoch+1, batch_size=self.batch_size,
                                              validation_data=(x_val, y_val), initial_epoch=epoch,

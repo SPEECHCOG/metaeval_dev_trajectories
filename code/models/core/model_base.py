@@ -75,7 +75,7 @@ class ModelBase(ABC):
         os.makedirs(self.logs_folder_path, exist_ok=True)
 
     @abstractmethod
-    def train(self) -> Tuple[List, List, List]:
+    def train(self) -> Tuple[List, List]:
         """
         It sets model's path and callbacks according to configuration provided.
         :return: trained model
@@ -116,12 +116,12 @@ class ModelBase(ABC):
             # Only for data schedule 'epoch' monitoring the first epoch can be done.
             if self.monitor_first_epoch:
                 tensorboard_fe = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0,
-                                             update_freq=self.checkpoint_sample_period)
+                                             update_freq=self.checkpoint_sample_period/self.batch_size - 1) # No. of batches 
                 callbacks_first_epoch.append(tensorboard_fe)
                 if not self.save_best:
                     checkpoint_fe = ModelCheckpointBatch(f'{model_file_name}_epoch-{{epoch:d}}_{{batch:d}}.h5',
                                                          monitor='val_loss', mode='min', verbose=1,
-                                                         save_freq=self.checkpoint_sample_period)
+                                                         save_freq=self.checkpoint_sample_period)  # No. of samples
                     callbacks_first_epoch.append(checkpoint_fe)
                 else:
                     callbacks_first_epoch.append(checkpoint)

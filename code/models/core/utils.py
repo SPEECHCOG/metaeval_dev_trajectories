@@ -244,11 +244,11 @@ class ModelCheckpointBatch(tf.keras.callbacks.ModelCheckpoint):
         logs = logs or {}
         if isinstance(self.save_freq, int):
             self._samples_seen_since_last_saving += logs.get('size', 1)
-            self._samples_seen_in_epoch += self._samples_seen_since_last_saving
+            self._samples_seen_in_epoch += logs.get('size', 1)
             if self._samples_seen_since_last_saving >= self.save_freq:
-                filepath = self.filepath.format(epoch=self._current_epoch+1, batch=batch, **logs)
+                filepath = self.filepath.format(epoch=self._current_epoch+1, **logs)
                 self.model.save(filepath)
                 if self.verbose > 0:
-                    print(f'\nEpoch {self._current_epoc + 1:d} - Samples: {self._samples_seen_in_epoch} saving model '
+                    print(f'\nEpoch {self._current_epoch + 1:d} - Samples: {self._samples_seen_in_epoch} saving model '
                           f'to {filepath}')
                 self._samples_seen_since_last_saving = 0
