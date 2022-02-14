@@ -120,6 +120,8 @@ class APCModel(ModelBase):
         # APC Model
         self.model = Model(input_feats, postnet_layer)
 
+        print(self.model.summary())
+
     def train(self):
         """
         Train APC model, optimiser adam and loss L1 (mean absolute error)
