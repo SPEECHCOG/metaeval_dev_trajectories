@@ -8,14 +8,12 @@ This corresponds to a translation from the Pytorch implementation
 """
 
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.layers import Input, Dense, Dropout, GRU, Add, Conv1D, Concatenate
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 
 from core.model_base import ModelBase
 from core.utils import AttentionWeights
-from read_configuration import load_all_training_data, load_training_file, load_epoch_training_data
 
 physical_devices = tf.config.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
@@ -63,35 +61,36 @@ class APCModel(ModelBase):
         if self.prenet:
             for i in range(self.prenet_layers):
                 rnn_input = Dense(self.prenet_units, activation='relu', name='prenet_linear_' + str(i))(rnn_input)
-                rnn_input = Dropout(self.prenet_dropout, name='prenet_dropout_'+str(i))(rnn_input)
+                rnn_input = Dropout(self.prenet_dropout, name='prenet_dropout_' + str(i))(rnn_input)
 
         # RNN
         for i in range(self.rnn_layers):
             # TODO Padding for sequences is not yet implemented
-            if i+1 < self.rnn_layers:
+            if i + 1 < self.rnn_layers:
                 # All GRU layers will have rnn_units units except last one
-                rnn_output = GRU(self.rnn_units, return_sequences=True, name='rnn_layer_'+str(i))(rnn_input)
+                rnn_output = GRU(self.rnn_units, return_sequences=True, name='rnn_layer_' + str(i))(rnn_input)
             else:
                 # Last GRU layer will have latent_dimension units
                 if self.residual and self.latent_dimension == self.rnn_units:
                     # The latent representation will be then the output of the residual connection.
-                    rnn_output = GRU(self.latent_dimension, return_sequences=True, name='rnn_layer_'+str(i))(rnn_input)
+                    rnn_output = GRU(self.latent_dimension, return_sequences=True, name='rnn_layer_' + str(i))(
+                        rnn_input)
                 else:
                     rnn_output = GRU(self.latent_dimension, return_sequences=True, name='latent_layer')(rnn_input)
 
-            if i+1 < self.rnn_layers:
+            if i + 1 < self.rnn_layers:
                 # Dropout to all layers except last layer
-                rnn_output = Dropout(self.rnn_dropout, name='rnn_dropout_'+str(i))(rnn_output)
+                rnn_output = Dropout(self.rnn_dropout, name='rnn_dropout_' + str(i))(rnn_output)
 
             if self.residual:
                 # residual connection is applied to last layer if the latent dimension and rnn_units are the same,
                 # otherwise is omitted. And to the first layer if the PreNet units and RNN units are the same,
                 # otherwise is omitted also for first layer.
-                residual_last = (i+1 == self.rnn_layers and self.latent_dimension == self.rnn_units)
+                residual_last = (i + 1 == self.rnn_layers and self.latent_dimension == self.rnn_units)
                 residual_first = (i == 0 and self.prenet_units == self.rnn_units)
 
-                if (i+1 < self.rnn_layers and i != 0) or residual_first:
-                    rnn_input = Add(name='rnn_residual_'+str(i))([rnn_input, rnn_output])
+                if (i + 1 < self.rnn_layers and i != 0) or residual_first:
+                    rnn_input = Add(name='rnn_residual_' + str(i))([rnn_input, rnn_output])
 
                 # Update output for next layer (PostNet) if this is the last layer. This will also be the latent
                 # representation.
@@ -130,50 +129,8 @@ class APCModel(ModelBase):
         # Configuration of learning process
         adam = Adam(lr=self.learning_rate)
         self.model.compile(optimizer=adam, loss='mean_absolute_error')
-        # configurations of model
-        callbacks, callbacks_first_epoch = super(APCModel, self).train()
 
-        x_val, y_val = load_training_file(self.path_validation_data, shift=True, steps=self.steps_shift)
-
-        # Check input data schedule
-        if self.data_schedule == 'all':
-            # Train the model
-            x_train, y_train = load_all_training_data(self.path_train_data, shift=True, steps=self.steps_shift)
-            self.model.fit(x_train, y_train, epochs=self.epochs, batch_size=self.batch_size,
-                           validation_data=(x_val, y_val), callbacks=callbacks)
-        elif self.data_schedule == 'epoch':
-            path_input_data = load_epoch_training_data(self.path_train_data)
-            total_epochs_per_iteration = len(path_input_data)
-            total_iterations = 1 if not self.loop_epoch_data else self.epochs
-            best_val_loss = float('inf')
-            wait = 0
-            epoch = 0
-            stop = False
-            while epoch < total_iterations:
-                for idx, path_data in enumerate(path_input_data):
-                    if epoch == 0 and self.monitor_first_epoch and idx == 0:
-                        custom_callbacks = callbacks_first_epoch
-                    else:
-                        custom_callbacks = callbacks
-                    x_train, y_train = load_training_file(path_data, shift=True, steps=self.steps_shift)
-                    history = self.model.fit(x_train, y_train, epochs=epoch+1, batch_size=self.batch_size,
-                                             validation_data=(x_val, y_val), initial_epoch=epoch,
-                                             callbacks=custom_callbacks)
-                    epoch += 1
-                    # Allow early stopping when there is more than one iteration over the training data.
-                    if self.early_stop_epochs is not None:
-                        if epoch >= total_epochs_per_iteration:
-                            if wait >= self.early_stop_epochs:
-                                stop = True
-                                break
-                            current_val_loss = history.history['val_loss'][0]
-                            if current_val_loss < best_val_loss:
-                                best_val_loss = current_val_loss
-                                wait = 0
-                            else:
-                                wait += 1
-                if stop:
-                    print(f'Epoch {epoch:05d}: early stopping')
-                    break
+        # training
+        super(APCModel, self).train()
 
         return self.model
