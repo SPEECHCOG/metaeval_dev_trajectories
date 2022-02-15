@@ -127,7 +127,7 @@ class ModelBase(ABC):
             if self.monitor_first_epoch:
                 tensorboard_fe = TensorBoard(log_dir=log_dir, write_graph=True, profile_batch=0,
                                              # No. of batches
-                                             update_freq=self.checkpoint_sample_period / self.batch_size - 1)
+                                             update_freq=int(self.checkpoint_sample_period / self.batch_size - 1))
                 callbacks_first_epoch.append(tensorboard_fe)
                 if not self.save_best:
                     checkpoint_fe = ModelCheckpoint(f'{model_file_name}_epoch-{{epoch:d}}_{{batch:d}}.h5',
