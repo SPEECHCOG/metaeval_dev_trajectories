@@ -4,6 +4,7 @@ New models should inherit from this class so training and prediction can be done
 all the models and independently.
 """
 import copy
+import gc
 import json
 import os
 import pathlib
@@ -177,6 +178,9 @@ class ModelBase(ABC):
                     history = self.model.fit(x_train, y_train, epochs=epoch + 1, batch_size=self.batch_size,
                                              validation_data=(x_val, y_val), initial_epoch=epoch,
                                              callbacks=custom_callbacks)
+                    del x_train
+                    del y_train
+                    gc.collect()
                     epoch += 1
                     # Allow early stopping when there is more than one iteration over the training data.
                     if self.early_stop_epochs is not None:
