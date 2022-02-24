@@ -64,18 +64,21 @@ calculate_standardised_mean_gain_per_contrast <- function(dtw_distances_file_pat
   return(effect_sizes_contrasts)
 }
 
-calculate_mean_effect <- function(effect_sizes_per_contrast, effect){
+calculate_mean_effect <- function(effect_sizes_per_contrast, effect, alpha){
   mean_es = mean(effect_sizes_per_contrast[[effect]])
   sd_es = sd(effect_sizes_per_contrast[[effect]])
-  return(list('mean_es'=mean_es, 'sd_es'=sd_es))
+  signficant = !any(effect_sizes_per_contrast[["p_value"]]>alpha)
+  return(list('mean_es'=mean_es, 'sd_es'=sd_es, 'significant'=signficant))
 }
 
 # Calculate effect sizes for Native and Non-native contrasts
 es = 'g'
 
-obtain_effects_for_all_epochs <- function(folder, model, contrasts_type, es){
+obtain_vowel_effects_for_all_epochs <- function(folder, model, contrasts_type, es, alpha){
   es_epochs <- list()
-  for (epoch in 0:10) {
+  steps = c(0, 562, 1125, 1688, 2251, 2814, 3377, 3940, 4503, 5066, 5629)
+  steps = c(steps, 1:10)
+  for (epoch in steps) {
     if (contrasts_type=='native') {
       results_path_c = paste(folder, model, '/', as.character(epoch), '/vowel_disc/dtw_distances_hc_native.csv', sep='')
       results_path_ivc = paste(folder, model, '/', as.character(epoch), '/vowel_disc/dtw_distances_ivc_native.csv', sep='')
@@ -87,20 +90,42 @@ obtain_effects_for_all_epochs <- function(folder, model, contrasts_type, es){
     es_contrasts_c <- calculate_standardised_mean_gain_per_contrast(results_path_c)
     es_contrasts_ivc <- calculate_standardised_mean_gain_per_contrast(results_path_ivc)
     es_all_contrasts <- rbind(es_contrasts_c, es_contrasts_ivc)
-    es_epoch <- calculate_mean_effect(es_all_contrasts, es)
+    es_epoch <- calculate_mean_effect(es_all_contrasts, es, alpha)
     
     es_epochs <- append(es_epochs, list(es_epoch))
   }
   return (es_epochs)
 }
 
+get_vowel_disc_effects_dataframe <- function(folder, model, contrasts_type, es, alpha){
+  effects_list <- obtain_vowel_effects_for_all_epochs(folder, model, contrasts_type, es, alpha)
+  ds <- c()
+  significant <- c()
+  total_steps <- length(effects_list)
+  for (epoch in 1:total_steps){
+    ds <- c(ds, effects_list[[epoch]]$mean_es)
+    significant <- c(significant, effects_list[[epoch]]$significant)
+  }
+  
+  days <- c(0:10)*1.73  # days represented by 10 hours of speech
+  days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
+  
+  df <- data.frame(
+    days = days,
+    d = ds,
+    significant = significant
+  )
+  return (df)
+}
 
 create_dev_trajectories_plot <- function(effects_lists, title){
   ds <- c()
   sd <- c()
+  non_significant <- c()
   for (epoch in 1:11){
     ds <- c(ds, effects_lists[[epoch]]$mean_es)
     sd <- c(sd, effects_lists[[epoch]]$sd_es)
+    non_significant <- c(non_significant, effects_lists[[epoch]]$"non_significant")
   }
   print(ds)
   print(sd)
@@ -108,13 +133,14 @@ create_dev_trajectories_plot <- function(effects_lists, title){
   plotting_data <- data.frame(
     hours = c(0:10),
     d = ds,
-    sd = sd
+    sd = sd,
+    non_significant = non_significant
   )
   print(plotting_data)
   
   p=ggplot(plotting_data, aes(y=d, x=hours)) +
     #Add data points and color them black
-    geom_point(size=3, shape=16) +
+    geom_point(size=3, shape=non_significant) +
     # geom_errorbar(aes(x=hours, ymin=d-sd, ymax=d+sd), width=0.4, colour="gray", alpha=0.8) +
     # geom_text(size=10, nudge_x = pos_label_x, nudge_y = pos_label_y, show.legend = FALSE) +
     scale_y_continuous(expand = c(0, 0), limits = c(-1, 4),
@@ -136,51 +162,5 @@ create_dev_trajectories_plot <- function(effects_lists, title){
 # native: 0.42 [0.33-0.51]
 # non-native: 0.46 [0.21-0.72]
 
-# Development of ES (0-100 h training)
-get_es_change_plot <- function(es_dev, lb_y=NA, ub_y=NA, pos_legend=NA){
-  pos_label_x <- es_dev$pos_label_x
-  pos_label_y <- es_dev$pos_label_y
-  p=ggplot(es_dev, aes(y=es, x=hours, group=model, colour=model, 
-                       linetype=model, label=significance)) +
-    #Add data points and color them black
-    geom_point(colour = 'black', size=3, shape=16) +
-    geom_text(size=10, nudge_x = pos_label_x, nudge_y = pos_label_y, show.legend = FALSE) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "grey") +
-    #Give y-axis a meaningful label
-    xlab('\nInput duration (hours)') +
-    ylab('Effect size\n') +
-    geom_smooth(se=FALSE, method=lm)
-  
-  if(!is.na(lb_y) & !is.na(ub_y)){
-    p <- p + scale_y_continuous(expand = c(0, 0), limits = c(lb_y, ub_y),
-                                breaks = seq(lb_y, ub_y, 1)) +
-      coord_cartesian(clip = "off")
-  }
-  if (is.na(pos_legend)){
-    pos_legend = c(0.8, 0.2)
-  }
-  p + theme(legend.position = pos_legend, text = element_text(size=18), 
-            axis.line = element_line(color='black', size=1)) +
-    labs(colour='Model:', linetype='Model:', label="")
-}
 
-# Native contrasts
-es_dev_nat <- data.frame(hours = c('0', '100', '0', '100'),
-                     es = c(apc_untrained_es_nat$mean_es, apc_es_nat$mean_es, cpc_untrained_es_nat$mean_es, cpc_es_nat$mean_es),
-                     significance = factor(c('s.', 's.', 's.', 's.'), labels=labels_significance, levels=c('n.s.', 's.')),
-                     pos_label_x = c(-0.1,0.05,-0.1, 0.05),
-                     pos_label_y = c(-0.1,0.02,0.01, 0.02),
-                     model = c('APC', 'APC', 'CPC', 'CPC'))
-
-get_es_change_plot(es_dev_nat, -1.5,2.5)
-
-# Non-native contrasts
-es_dev_nonnat <- data.frame(hours = c('0', '100', '0', '100'),
-                         es = c(apc_untrained_es_nonnat$mean_es, apc_es_nonnat$mean_es, cpc_untrained_es_nonnat$mean_es, cpc_es_nonnat$mean_es),
-                         significance = factor(c('s.', 's.', 's.', 's.'), labels=labels_significance, levels=c('n.s.', 's.')),
-                         pos_label_x = c(-0.1,0.08,-0.1, 0.08),
-                         pos_label_y = c(0.01,0.02,0.01, 0.02),
-                         model = c('APC', 'APC', 'CPC', 'CPC'))
-
-get_es_change_plot(es_dev_nonnat, -1, 3.2, c(0.2, 0.8))
 
