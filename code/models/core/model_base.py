@@ -178,6 +178,8 @@ class ModelBase(ABC):
                     history = self.model.fit(x_train, y_train, epochs=epoch + 1, batch_size=self.batch_size,
                                              validation_data=(x_val, y_val), initial_epoch=epoch,
                                              callbacks=custom_callbacks)
+                    if epoch == 0 and self.monitor_first_epoch and idx == 0:
+                        self.model.save(f'{model_file_name}_epoch-1.h5')
                     del x_train
                     del y_train
                     gc.collect()

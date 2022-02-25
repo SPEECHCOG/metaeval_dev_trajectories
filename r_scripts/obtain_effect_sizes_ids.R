@@ -92,32 +92,35 @@ get_ids_effects_dataframe <- function(folder, model, alpha){
 create_dev_trajectories_plot <- function(effects_lists, alpha, title){
   ds <- c()
   p_values <- c()
-  total_steps <- length(means_list)
+  total_steps <- length(effects_lists)
   for (epoch in 1:total_steps){
     ds <- c(ds, effects_lists[[epoch]]$d)
     p_values <- c(p_values, effects_lists[[epoch]]$'p-value')
   }
   
-  plotting_data <- data.frame(
-    hours = c(0:10),
-    d = ds,
-    p_values = p_values,
-    significance = p_values <=alpha
-  )
-  plotting_data <- plotting_data %>% filter(hours>0)
+  days <- c(0:10)*1.73  # days represented by 10 hours of speech
+  days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
-  p=ggplot(plotting_data, aes(y=d, x=hours, colour=significance)) +
+  plotting_data <- data.frame(
+    days = days,
+    d = ds,
+    significant = p_values <= alpha
+  )
+  
+  plotting_data <- plotting_data %>% filter(days>0)
+  
+  p=ggplot(plotting_data, aes(y=d, x=days)) +
     #Add data points and color them black
-    geom_point(size=3, shape=16) +
+    geom_point(size=2) +
     # geom_text(size=10, nudge_x = pos_label_x, nudge_y = pos_label_y, show.legend = FALSE) +
-    scale_y_continuous(expand = c(0, 0), limits = c(-1, 2.3),
-                       breaks = seq(-1, 2.3, 1)) +
+    #scale_y_continuous(expand = c(0, 0), limits = c(-1, 2.3),
+    #                   breaks = seq(-1, 2.3, 1)) +
     coord_cartesian(clip = "off") +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey") +
     #Give y-axis a meaningful label
-    xlab('\nInput duration (hours)') +
+    xlab('\nInput duration (simulated days)') +
     ylab('Effect size\n') +
-    geom_smooth(se=TRUE, method=lm)+
+    geom_smooth(se=FALSE, method=lm)+
     ggtitle(title) + 
     theme(axis.line = element_line(color='black', size=1), plot.title = element_text(hjust = 0.5))
   p
