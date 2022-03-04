@@ -12,20 +12,25 @@ source('obtain_effect_sizes_vowel_discrimination.R')
 
 create_plot_trajectories <- function(effects_df, title){
   
-  p=ggplot(effects_df, aes(y=d, x=days, group=capability, colour=capability, shape=significant)) +
-    geom_point(size=2) +
+  p=ggplot(effects_df, aes(y=d, x=days, group=capability, colour=capability)) +
+    geom_point(size=1.5) +
     scale_color_manual(values = c("IDS preference" = "#F8766D",
                                   "Native discrimination" = "#619CFF",
                                   "Non-native discrimination" = "#00BA38")) +
-    scale_y_continuous(expand = c(0, 0), limits = c(-1, 3),
-                       breaks = seq(-1, 3, 0.5)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(-1, 4.5),
+                       breaks = seq(-1, 4.5, 0.5)) +
     coord_cartesian(clip = "off") +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey") +
     xlab('\nInput duration (simulated days)') +
     ylab('Effect size\n') +
-    geom_smooth(se=FALSE, method=lm)+
+    geom_smooth(se=FALSE, method="lm")+
+    geom_smooth(se=FALSE, method="lm", formula=y~log(x), 
+                data=effects_df %>% filter(days>0), linetype="dotted") +
     ggtitle(title) + 
-    theme(axis.line = element_line(color='black', size=1), plot.title = element_text(hjust = 0.5))
+    theme(legend.position = c(0.7,0.85), legend.text=element_text(size=14),
+          legend.title=element_blank(), text = element_text(size=18), 
+          axis.line = element_line(color='black', size=1), 
+          plot.title = element_text(hjust = 0.5)) 
   return(p)
 }
 
@@ -53,6 +58,4 @@ for (model in models){
   plot <- create_plot_trajectories(all_capabilities, toupper(model))
   print(plot)
 }
-
-
 
