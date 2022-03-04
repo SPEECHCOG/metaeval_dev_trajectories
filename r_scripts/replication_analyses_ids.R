@@ -49,8 +49,13 @@ ds_zt <- diffs %>%
   left_join(ages) %>%
   filter(!is.na(d_z)) # CHECK THIS 
 
+# Native vs Non-native language
+ds_zt_nae <- data.frame(ds_zt)
+ds_zt_nae$english <- factor(ds_zt$nae, levels = c(TRUE, FALSE), 
+                            labels = c("North American English", "Non-North American English")) 
+
 # For the computational evaluation, we focus only on the North American English subset
-ds_zt_nae <- filter(ds_zt, nae==TRUE)
+ds_zt_nae <- filter(ds_zt_nae, nae==TRUE)
 
 # Random-Effect Model 
 intercept_mod <- metafor::rma(d_z ~ 1, 
@@ -81,10 +86,6 @@ metafor::funnel(intercept_mod, level=c(90, 95, 99), shade=c("white", "gray75", "
 reg_nat <- metafor::regtest(intercept_mod)
 # se <- seq(0, 1.8, length=100)
 # lines(coef(reg_nat$fit)[1] + coef(reg_nat$fit)[2]*se, se, lwd=1, col="red", lty=2)
-
-# Native vs Non-native language
-ds_zt_nae$english <- factor(ds_zt$nae, levels = c(TRUE, FALSE), 
-                        labels = c("North American English", "Non-North American English")) 
 
 # Linear Mixed-Effect model as in paper
 library(lmerTest)

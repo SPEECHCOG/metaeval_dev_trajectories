@@ -1,5 +1,6 @@
 # Developmental trajectories of IDS preference and Vowel discrimination 
 # obtained using meta-analysis.
+library(extrafont)
 
 source("replication_analyses_ids.R")
 source("replication_analyses_vowel_disc.R")
@@ -14,8 +15,6 @@ ids_df <- data.frame(
   capability="IDS preference"
 )
 
-ids_df <- ids_df %>% filter(days<=166)
-
 vd_nat_df <- data.frame(
   ds = rep(mean_es_nat, 166),
   days = 1:166,
@@ -29,22 +28,40 @@ vd_nonnat_df <- data.frame(
 )
 
 all_capabilities <- rbind(ids_df, vd_nat_df, vd_nonnat_df)
+vd <- all_capabilities %>% filter(capability != "IDS preference")
 
-ggplot(all_capabilities, 
-       aes(x = days, y = ds, colour=capability)) +  
-  scale_color_manual(values = c("IDS preference" = "#F8766D",
-                                "Native discrimination" = "#619CFF",
-                                "Non-native discrimination" = "#00BA38")) +
+
+infants_plot <- 
+  ggplot(all_capabilities, 
+       aes(x = days, y = ds, colour=capability, fill=capability)) + 
+  scale_color_manual(values = c("IDS preference" = "#00BA38",
+                                "Native discrimination" = "#F8766D",
+                                "Non-native discrimination" = "#619CFF")) +
+  scale_fill_manual(values = c("IDS preference" = "#00BA38",
+                                "Native discrimination" = "#F8766D",
+                                "Non-native discrimination" = "#619CFF")) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey") +
-  geom_smooth(method = "lm", size=0.9, se=TRUE, fill="grey70") + 
+  # IDS 
+  geom_smooth(method = "lm", size=0.9, se=TRUE, 
+              #fill=alpha("#00BA38", alpha=0.2), 
+              xseq=130:166, data=ids_df) + 
+  # Vowel discrimination
+  annotate('ribbon', x = c(1, 166), ymin = mean_es_nat_ci.lb, 
+           ymax = mean_es_nat_ci.ub, 
+           alpha = 0.5, fill=alpha("#F8766D", alpha=0.2)) +
+  annotate('ribbon', x = c(1, 166), ymin = mean_es_nonnat_ci.lb, 
+           ymax = mean_es_nonnat_ci.ub, 
+           alpha = 0.5, fill=alpha("#619CFF", alpha=0.8)) +
+  geom_line(size=0.9, data=vd) +
   scale_size_continuous(guide = "none") +
-  scale_y_continuous(expand = c(0, 0), limits = c(-1, 3),
-                     breaks = seq(-1, 3, 0.5)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(-1, 4.5),
+                     breaks = seq(-1, 4.5, 0.5)) +
   coord_cartesian(clip = "off") +
   xlab("\nMean age (days)") +
   ylab("Effect Size\n") + 
-  title("Infants") + 
-  theme(axis.line = element_line(color='black', size=1), plot.title = element_text(hjust = 0.5))
-  #theme(legend.position = "right", text = element_text(size=18), 
-  #      axis.line = element_line(color='black', size=1)) +
-  #labs(colour="")
+  ggtitle("Infants") + 
+  theme(legend.position = c(0.7,0.85), legend.text=element_text(family="LM Roman 10", size=14),
+        legend.title=element_blank(), text = element_text(family="LM Roman 10", size=18), 
+        axis.line = element_line(color='black', size=1), 
+        plot.title = element_text(hjust = 0.5))
+
