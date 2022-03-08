@@ -90,6 +90,7 @@ obtain_vowel_effects_for_all_epochs <- function(folder, model, contrasts_type, e
     es_contrasts_c <- calculate_standardised_mean_gain_per_contrast(results_path_c)
     es_contrasts_ivc <- calculate_standardised_mean_gain_per_contrast(results_path_ivc)
     es_all_contrasts <- rbind(es_contrasts_c, es_contrasts_ivc)
+    write.csv(es_all_contrasts, paste("./", model, "_", contrasts_type, "_", as.character(epoch), ".csv", sep=""))
     es_epoch <- calculate_mean_effect(es_all_contrasts, es, alpha)
     
     es_epochs <- append(es_epochs, list(es_epoch))
@@ -110,10 +111,14 @@ get_vowel_disc_effects_dataframe <- function(folder, model, contrasts_type, es, 
   days <- c(0:10)*1.73  # days represented by 10 hours of speech
   days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
+  checkpoint <- rep("batch", 10)
+  checkpoint <- c("epoch", checkpoint, rep("epoch",10))
+  
   df <- data.frame(
     days = days,
     d = ds,
-    significant = significant
+    significant = significant,
+    checkpoint = checkpoint
   )
   return (df)
 }

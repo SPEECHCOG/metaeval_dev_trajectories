@@ -44,7 +44,7 @@ infants_plot <-
   # IDS 
   geom_smooth(method = "lm", size=0.9, se=TRUE, 
               #fill=alpha("#00BA38", alpha=0.2), 
-              xseq=130:166, data=ids_df) + 
+              xseq=130:166, data=ids_df, linetype="dotted") + 
   # Vowel discrimination
   annotate('ribbon', x = c(1, 166), ymin = mean_es_nat_ci.lb, 
            ymax = mean_es_nat_ci.ub, 
@@ -52,7 +52,7 @@ infants_plot <-
   annotate('ribbon', x = c(1, 166), ymin = mean_es_nonnat_ci.lb, 
            ymax = mean_es_nonnat_ci.ub, 
            alpha = 0.5, fill=alpha("#619CFF", alpha=0.8)) +
-  geom_line(size=0.9, data=vd) +
+  geom_line(size=0.9, data=vd, linetype="dotted") +
   scale_size_continuous(guide = "none") +
   scale_y_continuous(expand = c(0, 0), limits = c(-1, 4.5),
                      breaks = seq(-1, 4.5, 0.5)) +

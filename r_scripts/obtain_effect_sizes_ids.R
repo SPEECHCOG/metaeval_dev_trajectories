@@ -81,10 +81,14 @@ get_ids_effects_dataframe <- function(folder, model, alpha){
   days <- c(0:10)*1.73  # days represented by 10 hours of speech
   days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
+  checkpoint <- rep("batch", 10)
+  checkpoint <- c("epoch", checkpoint, rep("epoch",10))
+  
   df <- data.frame(
     days = days,
     d = ds,
-    significant = p_values <= alpha
+    significant = p_values <= alpha,
+    checkpoint = checkpoint
   )
   return (df)
 }
