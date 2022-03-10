@@ -58,7 +58,7 @@ calculate_ids_standardised_mean_gain <- function(score_file_path){
 
 obtain_ids_effects_for_all_epochs <- function(folder, model){
   es_epochs <- list()
-  steps = c(0, 562, 1125, 1688, 2251, 2814, 3377, 3940, 4503, 5066, 5629)
+  steps = c(0, 562, 1125, 1688, 2251, 2814, 3377, 3940, 4503, 5066)
   steps = c(steps, 1:10)
   for (epoch in steps) {
     results_path = paste(folder, model, '/', as.character(epoch), '/ids/attentional_preference_scores.csv', sep='')
@@ -78,10 +78,10 @@ get_ids_effects_dataframe <- function(folder, model, alpha){
     p_values <- c(p_values, effects_list[[epoch]]$'p-value')
   }
   
-  days <- c(0:10)*1.73  # days represented by 10 hours of speech
+  days <- c(0:9)*1.73  # days represented by 10 hours of speech
   days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
-  checkpoint <- rep("batch", 10)
+  checkpoint <- rep("batch", 9)
   checkpoint <- c("epoch", checkpoint, rep("epoch",10))
   
   df <- data.frame(
@@ -102,7 +102,7 @@ create_dev_trajectories_plot <- function(effects_lists, alpha, title){
     p_values <- c(p_values, effects_lists[[epoch]]$'p-value')
   }
   
-  days <- c(0:10)*1.73  # days represented by 10 hours of speech
+  days <- c(0:9)*1.73  # days represented by 10 hours of speech
   days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
   plotting_data <- data.frame(

@@ -76,7 +76,7 @@ es = 'g'
 
 obtain_vowel_effects_for_all_epochs <- function(folder, model, contrasts_type, es, alpha){
   es_epochs <- list()
-  steps = c(0, 562, 1125, 1688, 2251, 2814, 3377, 3940, 4503, 5066, 5629)
+  steps = c(0, 562, 1125, 1688, 2251, 2814, 3377, 3940, 4503, 5066)
   steps = c(steps, 1:10)
   for (epoch in steps) {
     if (contrasts_type=='native') {
@@ -108,10 +108,10 @@ get_vowel_disc_effects_dataframe <- function(folder, model, contrasts_type, es, 
     significant <- c(significant, effects_list[[epoch]]$significant)
   }
   
-  days <- c(0:10)*1.73  # days represented by 10 hours of speech
+  days <- c(0:9)*1.73  # days represented by 10 hours of speech
   days <- c(days, c(1:9)*17.3, 9*17.3 + 10.3) # total days represented by 960 hours of speech. last chunk only contains 60 hours of speech
   
-  checkpoint <- rep("batch", 10)
+  checkpoint <- rep("batch", 9)
   checkpoint <- c("epoch", checkpoint, rep("epoch",10))
   
   df <- data.frame(
@@ -123,6 +123,7 @@ get_vowel_disc_effects_dataframe <- function(folder, model, contrasts_type, es, 
   return (df)
 }
 
+# TODO
 create_dev_trajectories_plot <- function(effects_lists, title){
   ds <- c()
   sd <- c()

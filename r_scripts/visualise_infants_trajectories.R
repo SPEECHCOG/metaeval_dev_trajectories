@@ -27,12 +27,12 @@ vd_nonnat_df <- data.frame(
   capability="Non-native discrimination"
 )
 
-all_capabilities <- rbind(ids_df, vd_nat_df, vd_nonnat_df)
-vd <- all_capabilities %>% filter(capability != "IDS preference")
+all_capabilities_infants <- rbind(ids_df, vd_nat_df, vd_nonnat_df)
+vd <- all_capabilities_infants %>% filter(capability != "IDS preference")
 
 
 infants_plot <- 
-  ggplot(all_capabilities, 
+  ggplot(all_capabilities_infants, 
        aes(x = days, y = ds, colour=capability, fill=capability)) + 
   scale_color_manual(values = c("IDS preference" = "#00BA38",
                                 "Native discrimination" = "#F8766D",
