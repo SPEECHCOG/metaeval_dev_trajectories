@@ -55,6 +55,14 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
   
   infants_data = all_capabilities_infants %>% filter(capability==cap)
   models_data = models_effects %>% filter(capability==cap)
+  models_subset_data <- models_data
+  if(cap=="IDS preference"){
+    models_subset_data <- models_subset_data %>% filter(days>=130)
+  }else if(cap=="Native discrimination"){
+    models_subset_data <- models_subset_data %>% filter(days>=3)
+  }else{
+    models_subset_data <- models_subset_data %>% filter(days>=106)
+  }
   
   colours_plot = c("APC" = "#7629A0", "CPC" = "#E27000")
   labels_plot = c("APC", "CPC")
@@ -75,6 +83,8 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
     #scale_shape_manual(values =c("batch"=1, "epoch"=20), )+
     geom_smooth(size=0.9, se=FALSE, method="lm", data=models_data, 
                 aes(y=predicted, x=days, colour=model)) + 
+    geom_smooth(size=0.9, se=FALSE, method="lm", data=models_subset_data, 
+                aes(y=d, x=days, colour=model),  linetype="dotted") + 
     
     ggtitle(cap) + 
     
@@ -103,14 +113,14 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
                                                  colour=capability), data=infants_data)
     if(cap=="Native discrimination"){
       overlapped_plot <- overlapped_plot +
-        annotate('ribbon', x = c(1, 166), ymin = mean_es_nat_ci.lb, 
+        annotate('ribbon', x = c(3, 166), ymin = mean_es_nat_ci.lb, 
                  ymax = mean_es_nat_ci.ub, 
                  alpha = 0.5, fill=alpha("#F8766D", alpha=0.2))
       colours_plot <- c(colours_plot, "Native discrimination" = "#F8766D")
       labels_plot <- c(labels_plot, "Infants")
     }else{
       overlapped_plot <- overlapped_plot +
-        annotate('ribbon', x = c(1, 166), ymin = mean_es_nonnat_ci.lb, 
+        annotate('ribbon', x = c(106, 166), ymin = mean_es_nonnat_ci.lb, 
                  ymax = mean_es_nonnat_ci.ub, 
                  alpha = 0.5, fill=alpha("#619CFF", alpha=0.8))
       

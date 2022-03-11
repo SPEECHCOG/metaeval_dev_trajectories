@@ -90,7 +90,7 @@ obtain_vowel_effects_for_all_epochs <- function(folder, model, contrasts_type, e
     es_contrasts_c <- calculate_standardised_mean_gain_per_contrast(results_path_c)
     es_contrasts_ivc <- calculate_standardised_mean_gain_per_contrast(results_path_ivc)
     es_all_contrasts <- rbind(es_contrasts_c, es_contrasts_ivc)
-    write.csv(es_all_contrasts, paste("./", model, "_", contrasts_type, "_", as.character(epoch), ".csv", sep=""))
+    write.csv(es_all_contrasts, paste("./",model,"_vowel_results/", model, "_", contrasts_type, "_", as.character(epoch), ".csv", sep=""))
     es_epoch <- calculate_mean_effect(es_all_contrasts, es, alpha)
     
     es_epochs <- append(es_epochs, list(es_epoch))

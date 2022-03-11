@@ -16,14 +16,14 @@ ids_df <- data.frame(
 )
 
 vd_nat_df <- data.frame(
-  ds = rep(mean_es_nat, 166),
-  days = 1:166,
+  ds = rep(mean_es_nat, 164),
+  days = 3:166,
   capability="Native discrimination"
 )
 
 vd_nonnat_df <- data.frame(
-  ds = rep(mean_es_nonnat, 166),
-  days = 1:166,
+  ds = rep(mean_es_nonnat, 61),
+  days = 106:166,
   capability="Non-native discrimination"
 )
 
