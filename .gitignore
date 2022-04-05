@@ -1,0 +1,8 @@
+# Pycharm configuration local files and python compilation files.
+*/.idea/
+.idea/
+*.pyc
+# R Studio local files
+*/.Rhistory
+.Rhistory
+
