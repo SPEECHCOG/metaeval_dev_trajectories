@@ -13,7 +13,7 @@ import tempfile
 import warnings
 import zipfile
 from typing import Optional, List, Union, Tuple
-
+from pathlib import Path
 import h5py
 import librosa
 import numpy as np
@@ -180,30 +180,40 @@ def _read_config_file(config_path: Union[pathlib.Path, str]) -> Tuple[
         tmp_dirs = []
         audio_exts = [".flac", ".wav"]
         file_paths = []
+        if type(compressed_files_paths) == str:
+            tmp = compressed_files_paths
+            compressed_files_paths = []
+            compressed_files_paths.append(tmp)
         for compressed_file_path in compressed_files_paths:
             if pathlib.Path(compressed_file_path).exists():
-                if zipfile.is_zipfile(compressed_file_path) or tarfile.is_tarfile(compressed_file_path):
-                    tmp_dir = tempfile.TemporaryDirectory()
-                    tmp_dirs.append(tmp_dir)
-                    if zipfile.is_zipfile(compressed_file_path):
-                        zip = zipfile.ZipFile(compressed_file_path)
-                        members_tmp = zip.namelist()
-                        members = [audio_file for audio_file in members_tmp if
-                                   pathlib.Path(audio_file).suffix in ['.flac', '.wav']]
-                        zip.extractall(tmp_dir.name, members)
-                        zip.close()
-                    elif tarfile.is_tarfile(compressed_file_path):
-                        tar = tarfile.open(compressed_file_path)
-                        members_tmp = tar.getmembers()
-                        members = [member for member in members_tmp if
-                                   pathlib.Path(member.name).suffix in ['.flac', '.wav']]
-                        tar.extractall(tmp_dir.name, members)
-                        tar.close()
-                    file_paths += [audio_file for audio_file in pathlib.Path(tmp_dir.name).rglob("*") if
-                                   audio_file.suffix in audio_exts]
+                if not os.path.isdir(compressed_file_path):
+                    if zipfile.is_zipfile(compressed_file_path) or tarfile.is_tarfile(compressed_file_path):
+                        tmp_dir = tempfile.TemporaryDirectory()
+                        tmp_dirs.append(tmp_dir)
+                        if zipfile.is_zipfile(compressed_file_path):
+                            zip = zipfile.ZipFile(compressed_file_path)
+                            members_tmp = zip.namelist()
+                            members = [audio_file for audio_file in members_tmp if
+                                       pathlib.Path(audio_file).suffix in ['.flac', '.wav']]
+                            zip.extractall(tmp_dir.name, members)
+                            zip.close()
+                        elif tarfile.is_tarfile(compressed_file_path):
+                            tar = tarfile.open(compressed_file_path)
+                            members_tmp = tar.getmembers()
+                            members = [member for member in members_tmp if
+                                       pathlib.Path(member.name).suffix in ['.flac', '.wav']]
+                            tar.extractall(tmp_dir.name, members)
+                            tar.close()
+                        file_paths += [audio_file for audio_file in pathlib.Path(tmp_dir.name).rglob("*") if
+                                       audio_file.suffix in audio_exts]
                 else:
+                     for ext in audio_exts:    
+                         for path in Path(compressed_file_path).rglob('*' + ext):
+                             file_paths.append(str(path))
+                if(len(file_paths) == 0):
                     warnings.warn(f"compressed file format not recognised: {compressed_file_path}. File ignored")
                     continue
+           
             else:
                 warnings.warn(f"audios_path: {compressed_file_path} does not exist. File ignored")
                 continue
@@ -223,7 +233,10 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, required=True)
     args = parser.parse_args()
     file_paths, tmp_dirs, output_file, sample_length, optional_args = _read_config_file(args.config)
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+
     extract_acoustic_features(file_paths, output_file, sample_length, **optional_args)
     # delete temporal directory after process
     for tmp_dir in tmp_dirs:
         tmp_dir.cleanup()
+
