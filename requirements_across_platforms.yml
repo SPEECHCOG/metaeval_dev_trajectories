@@ -1,0 +1,15 @@
+name: metaeval_env
+channels:
+  - defaults
+dependencies:
+  - python=3
+  - keras
+  - tensorflow-gpu
+  - astropy
+  - librosa
+  - hdf5storage
+  - scikit-optimize
+  - pandas
+  - pip:
+    - dtw-python
+    - tabulate
