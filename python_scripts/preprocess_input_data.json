@@ -1,0 +1,18 @@
+{
+  "audios_paths": ["../../../Data/Librispeech/dev-clean.tar.gz", "../../../Data/Librispeech/dev-other.tar.gz", "../../../Data/SpokenCOCO/wavs.tar.gz"],
+  "shuffle_files": true,
+  "output_file": "input_feats/LibriCOCOtrain_nonorm.h5",
+  "sample_length": 200,
+  "optional_args": {
+    "window_length": 0.025,
+    "window_shift": 0.01,
+    "num_features": 13,
+    "deltas": true,
+    "deltas_deltas": true,
+    "cmvn": false,
+    "name": "mfcc",
+    "reset_dur": 50,
+    "target_sampling_freq": 16000,
+    "limit_h5py_size": 100
+  }
+}
