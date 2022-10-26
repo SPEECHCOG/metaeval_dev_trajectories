@@ -1,0 +1,51 @@
+{
+  "training": {
+    "input_features": {
+      "train": "/scratch/gdmacr/Corpora/LibriSpeech/LibriSpeech_train_unnormalised_100.h5",
+      "validation": "/scratch/gdmacr/Corpora/LibriSpeech/LibriSpeech_dev_unnormalised.h5"
+    },
+    "output_path": "/scratch/gdmacr/eval_protocol/Vowel_Discrimination/",
+    "features_folder_name": "mfcc",
+    "language": "english",
+    "model": {
+      "name": "cpc",
+      "type": "cpc",
+      "epochs": 20,
+      "early_stop_epochs": 10,
+      "batch_size": 32,
+      "latent_dimension": 512,
+      "input_attention": false,
+      "sample_size": 200,
+      "num_features": 39,
+      "checkpoint_epoch_period": 1,
+      "checkpoint_sample_period": 960,
+      "monitor_first_epoch": false,
+      "data_schedule": "epoch",
+      "loop_epoch_data": false,
+      "save_untrained": true,
+      "save_best": true,
+      "apc": {
+        "prenet": true,
+        "prenet_layers": 3,
+        "prenet_dropout": 0.2,
+        "prenet_units": 128,
+        "rnn_layers": 3,
+        "rnn_dropout": 0.0,
+        "rnn_units": 512,
+        "residual": true,
+        "learning_rate": 0.0001,
+        "steps_shift": 5
+      },
+      "cpc": {
+        "encoder_layers": 3,
+        "encoder_units": 512,
+        "encoder_dropout": 0.2,
+        "gru_units": 256,
+        "dropout": 0.2,
+        "neg": 10,
+        "steps": 12,
+        "learning_rate": 0.001
+      }
+    }
+  }
+}
