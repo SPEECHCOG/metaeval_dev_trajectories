@@ -63,15 +63,15 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
   }
   
   colours_plot = c("APC" = "#7629A0", "CPC" = "#E27000")
-  labels_plot = c("APC", "CPC")
+  labels_plot = c(expression(APC[NOV]), expression(CPC[NOV]))
   
   overlapped_plot <- ggplot(infants_data, aes(x = days, y = ds)) + 
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey28") +
     
     scale_size_continuous(guide = "none") +
     coord_cartesian(clip = "off") +
-    xlab("\nSimulated model age / real infant age (days)") +
-    ylab("Effect Size\n") + 
+    xlab("Simulated model age / real infant age (days)") +
+    ylab("Effect Size") + 
     
     geom_point(size=1.5, data=models_data, aes(y=d, x=days, 
                                                colour=model)) +
@@ -95,8 +95,8 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
                                                      xseq=130:250, 
                                                      colour="#00BA38",
                                                      fill="#00BA38") +
-      geom_smooth(size=1, se=FALSE, method="lm", data=models_subset_data, 
-                  aes(y=d, x=days, group=model), colour="gray4") +
+      #geom_smooth(size=1, se=FALSE, method="lm", data=models_subset_data, 
+      #            aes(y=d, x=days, group=model), colour="gray4") +
       scale_y_continuous(expand = c(0, 0), limits = c(-1, 1.5),
                          breaks = seq(-1, 1.5, 0.5))
     colours_plot <- c(colours_plot, "IDS preference" = "#00BA38")
@@ -122,8 +122,8 @@ get_overlapped_plot_per_cap <- function(models_effects, cap){
         annotate('ribbon', x = c(106, 166), ymin = mean_es_nonnat_ci.lb, 
                  ymax = mean_es_nonnat_ci.ub, 
                  alpha = 0.5, fill=alpha("#619CFF", alpha=0.8))+
-        geom_smooth(size=1, se=FALSE, method="lm", data=models_subset_data, 
-                    aes(y=d, x=days, group=model), colour="gray3") + 
+        #geom_smooth(size=1, se=FALSE, method="lm", data=models_subset_data, 
+        #            aes(y=d, x=days, group=model), colour="gray3") + 
         scale_y_continuous(expand = c(0, 0), limits = c(-0.5, 2.5),
                            breaks = seq(-0.5, 2.5, 0.5)) 
         #ggtitle("Non-native vowel discrimination")
