@@ -1,9 +1,11 @@
 # Computational modelling of  developmental trajectories of infant language skills with meta-analytic reference data
+This repository contains the code to train APC and CPC models used in the manuscript "Introducing meta-analysis in 
+the evaluation of computational models of infant language development". 
 
 ## Requirements
 
 The code for predictive coding models was developed usng Python 3.8 and
-TensorFlow 2.1.0
+TensorFlow 2.1.0. 
 
 To execute the python code  the dependencies are specified in 
 `./requirements.yml` for conda the environment. To create the environment 
@@ -16,7 +18,7 @@ conda env create -f requirements.yml
 use `./requirements_across_platforms.yml` if you find problems with 
 `requirements.yml`
 
-Then you can activate the conda environment for excuting the code
+Then you can activate the conda environment for executing the code
 
 ```
 conda activate metaeval_env
@@ -28,7 +30,7 @@ conda activate metaeval_env
 * `python_scripts` contains the code for training APC and CPC models
 and preprocess input features.
 
-# Preprocess input data
+## Preprocess input data
 
 Edit `preprocess_input_data.json` file to match with the path of the 
 data in your computer. You can find a description of the type of data 
@@ -45,7 +47,7 @@ python preprocess_training_data.py --config preprocess_input_data.json
 
 ```
 
-# Train model
+## Train model
 Edit `config_apc.json` file to match with the paths on your computer.
 This file already contains the default configuration of the model that 
 replicates the results in the manuscript "Introducing meta-analysis in 
@@ -55,6 +57,11 @@ cd models
 python train.py --config config_apc.json
 ```
 
+## Citing this work
+
+María Andrea Cruz Blandón, Alejandrina Cristia, Okko Räsänen. (2023). 
+Introducing meta-analysis in the evaluation of computational models of infant 
+language development. Accepted for publication in Cognitive Science Journal
 
 ## Contact
 If you find any issue please report it on the 

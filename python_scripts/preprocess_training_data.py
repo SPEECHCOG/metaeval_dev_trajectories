@@ -85,7 +85,7 @@ def extract_acoustic_features(audio_paths: List[pathlib.Path],
             # mfcc = (mfcc - mean) / std
 
         features.append(tmp_feats)
-        print('{}/{} file processed'.format(idx, len(file_paths)))
+        print('{}/{} file processed'.format(idx, len(audio_paths)))
         print(tmp_feats.shape)
 
         # Check h5py size limit
